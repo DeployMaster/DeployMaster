@@ -687,7 +687,7 @@ module.exports = function (_parameters) {
     // -------------------------------------------------------------------
 
     /**
-     * Method: Api.create_pack_from_index()
+     * Method: Api.get_ignorelist()
      * Param: workdir (String)
      * Return: ignorelist (Array)
      */
@@ -734,7 +734,7 @@ module.exports = function (_parameters) {
         }
 
         if (typeof parameters.as != 'undefined' && parameters.as == 'gzip') {
-            var pack_buffer = Buffer(JSON.stringify(pack));
+            var pack_buffer = new Buffer(JSON.stringify(pack));
             zlib.gzip(pack_buffer, function (error, result) {
                 parameters.return({
                     pack: result
