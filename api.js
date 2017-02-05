@@ -27,16 +27,21 @@
  *
  */
 
-var os = require('os');
-var fs = require('fs');
-var fs_path = require('path');
-var glob = require('glob');
-var crypto = require('crypto');
-var util = require('util');
-var JSONTCPSOCKET = require('json-tcp-socket');
-var clone = require('clone');
-var zlib = require('zlib');
-var rimraf = require('rimraf');
+const os = require('os');
+const fs = require('fs');
+const fs_path = require('path');
+const glob = require('glob');
+const crypto = require('crypto');
+const util = require('util');
+const JSONTCPSOCKET = require('json-tcp-socket');
+const clone = require('clone');
+const uniqid = require('uniqid');
+const JSZip = require('jszip');
+const zlib = require('zlib');
+const rimraf = require('rimraf');
+
+const config = require('./config.js');
+const tools = require('./tools.js');
 
 module.exports = function (_parameters) {
     t_Api = this;
@@ -78,7 +83,7 @@ module.exports = function (_parameters) {
         if (fs.existsSync(path)) {
             return fs.realpathSync(path);
         }
-        return false; 
+        return false;
     };
 
     t_Api.absolute_path = function (path) {
@@ -96,7 +101,7 @@ module.exports = function (_parameters) {
         return t_Api.absolute_path(path).replace(workdir, '').replace(new RegExp('\\\\', 'g'), '/');
     };
 
-    t_Api.absolute_path_from_relative_index_path = function (relative_path, workdir) {
+    t_Api.index_abs_path = function (relative_path, workdir) {
         return t_Api.absolute_path(workdir+'/'+relative_path);
     };
 
@@ -145,6 +150,19 @@ module.exports = function (_parameters) {
     // -------------------------------------------------------------------
 
     t_Api.unpushed_status = false;
+
+    // -------------------------------------------------------------------
+
+    t_Api.tmp = {};
+    t_Api.tmp.is_ready = false;
+    t_Api.tmp.dir = null;
+    t_Api.tmp.path = null;
+
+    // -------------------------------------------------------------------
+
+    t_Api.pack = {};
+    t_Api.pack.is_ready = false;
+    t_Api.pack.path = null;
 
     // -------------------------------------------------------------------
 
@@ -325,7 +343,7 @@ module.exports = function (_parameters) {
                         sha1sum: file_path_sha1sum,
                         path: file_path_relative
                     },
-                    stat: file_stat,
+                    stat: {mode: file_stat.mode},
                     platform: process.platform
                 };
             } else {
@@ -341,7 +359,7 @@ module.exports = function (_parameters) {
                     content: {
                         sha1sum: file_sha1sum
                     },
-                    stat: file_stat,
+                    stat: {mode: file_stat.mode},
                     platform: process.platform
                 };
             }
@@ -704,46 +722,91 @@ module.exports = function (_parameters) {
     // -------------------------------------------------------------------
 
     /**
-     * Method: Api.create_pack_from_index()
+     * Method: Api.create_pack()
      * Param: parameters (Object) {
      *    index: index (Difference Index) (Deploymaster Index Object) (Object),
      *    as: undefined or 'gzip',
-     *    return: function (pack) {...} (Return Callback) (Function) {
-     *       Param: pack (Object) or (Buffer) for gzip {
-     *          pack: [new object] (Index Pack) (Difference Index) (DeployMaster Index Object) (Buffer)
+     *    return: function (parameters) {
+     *       Param: parameters (Object) {
+     *          index: [new object] (Index Pack) (Difference Index) (DeployMaster Index Object) (Buffer),
+     *          ok: (Boolean)
      *       }
      *    }
      * }
      */
-    t_Api.create_pack_from_index = function (parameters) {
-        var pack = {};
-        
-        pack = clone(parameters.index);
+    t_Api.create_pack = function (parameters) {
+        t_Api.need_tmp_dir();
+        t_Api.pack.path = t_Api.tmp.path+fs_path.sep+'dpack.zip';
 
-        var key;
-        var file;
-        var real_path;
+        var zip = new JSZip();
 
-        for (key in pack) {
-            file = pack[key];
+        for (_key in parameters.index) {
+            _file = parameters.index[_key];
 
-            if (file.type == 'file' && (file.pull.status == t_Api.FILE_STATUS_NEW || file.pull.status == t_Api.FILE_STATUS_MODIFIED)) {
-                real_path = t_Api.absolute_path_from_relative_index_path(file.path.path, t_Api.parameters['workdir']);
-                file.content.content = fs.readFileSync(real_path);
+            if (
+                (_file.type == 'file')
+                &&
+                (
+                    (_file.pull.status == t_Api.FILE_STATUS_NEW)
+                    ||
+                    (_file.pull.status == t_Api.FILE_STATUS_MODIFIED)
+                )
+            ) {
+                zip.file(_file.path.path, fs.createReadStream(
+                    t_Api.index_abs_path(_file.path.path, t_Api.parameters['workdir'])
+                ));
             }
         }
 
-        if (typeof parameters.as != 'undefined' && parameters.as == 'gzip') {
-            var pack_buffer = new Buffer(JSON.stringify(pack));
-            zlib.gzip(pack_buffer, function (error, result) {
+        zip
+        .generateNodeStream({type: 'nodebuffer', streamFiles: true})
+        .pipe(fs.createWriteStream(t_Api.pack.path))
+        .on('finish', function () {
+            t_Api.pack.is_ready = true;
+
+            var pack = clone(parameters.index);
+
+            if (typeof parameters.as != 'undefined' && parameters.as == 'gzip') {
+                var pack_buffer = new Buffer(JSON.stringify(pack));
+                zlib.gzip(pack_buffer, function (error, result) {
+                    parameters.return({
+                        index: result,
+                        ok: true
+                    });
+                })
+            } else {
                 parameters.return({
-                    pack: result
+                    index: pack,
+                    ok: true
                 });
-            })
-        } else {
-            parameters.return({
-                pack: pack
-            });
+            }
+        });
+    };
+
+    t_Api.need_tmp_dir = function () {
+        if (t_Api.tmp.is_ready) {
+            return false;
+        }
+
+        t_Api.tmp.dir = uniqid('deploymaster-');
+        t_Api.tmp.path = os.tmpdir()+fs_path.sep+t_Api.tmp.dir;
+        fs.mkdirSync(t_Api.tmp.path);
+        t_Api.tmp.is_ready = true;
+
+        return true;
+    };
+
+    t_Api.clear_tmp_dir = function () {
+        if (t_Api.tmp.is_ready) {
+            try {
+                rimraf.sync(t_Api.tmp.path);
+            } catch (error) {}
+
+            t_Api.tmp.is_ready = false;
+            t_Api.tmp.path = null;
+
+            t_Api.pack.is_ready = false;
+            t_Api.pack.path = null;
         }
     };
 
@@ -757,6 +820,7 @@ module.exports = function (_parameters) {
         t_DevelopmentRepo.parameters['remote'] = {
             address: false,
             port: false,
+            transfer_port: false,
             repo: false,
             is_connected: false,
         };
@@ -767,6 +831,7 @@ module.exports = function (_parameters) {
             remote: {
                 address: false,
                 port: false,
+                transfer_port: false,
                 tls: {
                     use_tls: true,
                     trusted_certs: []
@@ -970,6 +1035,8 @@ module.exports = function (_parameters) {
                     parameters['on_disconnected']();
                 }
             });
+
+            // -------------------------------------------------------------------
         };
 
         /**
@@ -1020,23 +1087,46 @@ module.exports = function (_parameters) {
          * }
          */
         t_DevelopmentRepo.push_to_host_repo = function (parameters) {
-            t_DevelopmentRepo.parameters['remote']['callbacks']['start_stream_for_push_pack_return'] = function (data) {
+            t_DevelopmentRepo.parameters['remote']['callbacks']['start_stream_index_return'] = function (data) {
                 if (data.ok) {
                     t_DevelopmentRepo.parameters['remote']['socket'].write({
-                        event: 'data_stream_for_push_pack',
+                        event: 'data_stream_index',
                         data: {
                             pack: parameters.pack
                         }
                     });
 
-                    t_DevelopmentRepo.parameters['remote']['callbacks']['end_stream_for_push_pack'] = function () {
-                        parameters.on_data_sended();
+                    t_DevelopmentRepo.parameters['remote']['callbacks']['end_stream_index'] = function () {
+                        
                     };
 
-                    t_DevelopmentRepo.parameters['remote']['callbacks']['unpacked_for_push'] = function (data) {
-                        parameters.unpacked({
-                            ok: data.ok
+                    t_DevelopmentRepo.parameters['remote']['callbacks']['index_unpacked'] = function (data) {
+                        t_DevelopmentRepo.parameters['remote']['socket'].write({
+                            event: 'start_stream_pack'
                         });
+
+                        t_DevelopmentRepo.parameters['remote']['callbacks']['pack_unpacked'] = function () {
+                            parameters.unpacked({
+                                ok: true
+                            });
+                        };
+
+                        t_DevelopmentRepo.parameters['remote']['callbacks']['start_stream_pack_return'] = function () {
+                            var read_stream = fs.createReadStream(t_Api.pack.path, {
+                                // highWaterMark: 1 * 64,
+                            });
+
+                            read_stream.on('data', function (chunk) {
+                                t_DevelopmentRepo.parameters['remote']['socket'].write({
+                                    event: 'chunk_stream_pack',
+                                    chunk: chunk
+                                });
+                            }).on('end', function () {
+                                t_DevelopmentRepo.parameters['remote']['socket'].write({
+                                    event: 'end_stream_pack'
+                                });
+                            });
+                        };
                     };
                 } else {
                     t_Api.debug_print('\n  \033[91m[Error] Remote error: Remote host did not accept data.');
@@ -1044,7 +1134,7 @@ module.exports = function (_parameters) {
                 }
             };
             t_DevelopmentRepo.parameters['remote']['socket'].write({
-                event: 'start_stream_for_push_pack',
+                event: 'start_stream_index',
                 data: {
                     size: parameters.pack.length,
                     as: parameters.as
@@ -1090,18 +1180,19 @@ module.exports = function (_parameters) {
     // -------------------------------------------------------------------
 
     /**
-     * Method: Api.apply_pack_to_workdir()
+     * Method: Api.apply_pack()
      * Applies difference index pack to working directory
      * Param: parameters (Object) {
-     *     pack: (Index Pack) (Difference Index) (DeployMaster Index Object) (Buffer),
+     *     index: (Index Pack) (Difference Index) (DeployMaster Index Object) (Buffer),
+     *     pack: (Zip Pack Details) {path: (String)} (Object),
      *     workdir: path (String),
      *     ignorelist: [Optional] (DeployMaster Ignorelist Object) (Object),
      *     owner: (String) or false (Default) (Boolean),
      *     group: (String) or false (Default) (Boolean)
      * }
      */
-    t_Api.apply_pack_to_workdir = function (parameters) {
-        if (Object.keys(parameters.pack).length == 0) {
+    t_Api.apply_pack = function (parameters) {
+        if (Object.keys(parameters.index).length == 0) {
             return;
         }
 
@@ -1116,7 +1207,7 @@ module.exports = function (_parameters) {
             parameters.ignorelist = [];
         }
 
-        var sorted_index_keys = t_Api.sort_index_by_status(parameters.pack);
+        var sorted_index_keys = t_Api.sort_index_by_status(parameters.index);
 
         var offset;
         var file;
@@ -1125,7 +1216,7 @@ module.exports = function (_parameters) {
         var file_mode;
 
         for (offset in sorted_index_keys) {
-            file = parameters.pack[sorted_index_keys[offset]];
+            file = parameters.index[sorted_index_keys[offset]];
 
             var _key;
             var ignored;
@@ -1141,11 +1232,11 @@ module.exports = function (_parameters) {
             }
             
             file_content_buffer = undefined;
-            file_path_absolute = t_Api.absolute_path_from_relative_index_path(file.path.path, parameters.workdir);
-            // ??
+            file_path_absolute = t_Api.index_abs_path(file.path.path, parameters.workdir);
+            
             if ((typeof file.stat != 'undefined') && (typeof file.stat.mode != 'undefined')) {
                 if (file.platform != 'win32') {
-                    file_mode = '7'+parseInt(parseInt(parseInt(file.stat.mode).toString(8).substr(-3))%100).toString();
+                    file_mode = parseInt(parseInt(parseInt(file.stat.mode).toString(8))%1000).toString();
                 } else {
                     file_mode = '770';
                 }
@@ -1153,59 +1244,99 @@ module.exports = function (_parameters) {
                 file_mode = '770';
             }
 
-            if (file.pull.status == t_Api.FILE_STATUS_NEW) {
-                /*
-                 * !!! FILE-DIR/DIR-FILE TRANSFORMATION for NEW OP
-                 * It file exists this mean file-directory or directory-file transforms
-                 * for stable scenario
-                 */
-                if (fs.existsSync(file_path_absolute)) {
-                    rimraf.sync(file_path_absolute);
-                }
-
-                if (file.type == 'file') {
-                    file_content_buffer = new Buffer(file.content.content);
-                    fs.writeFileSync(file_path_absolute, file_content_buffer);
-                } else if (file.type == 'directory') {
-                    fs.mkdirSync(file_path_absolute);
-                }
-            } else if (file.pull.status == t_Api.FILE_STATUS_MODIFIED) {
-                file_content_buffer = new Buffer(file.content.content);
-                fs.writeFileSync(file_path_absolute, file_content_buffer);
-            } else if (file.pull.status == t_Api.FILE_STATUS_COPIED) {
-                /*
-                 * !!! FILE-DIR/DIR-FILE TRANSFORMATION for COPY OP
-                 * If file exists this mean file-directory or directory-file transforms
-                 * for stable scenario
-                 */
+            if (file.pull.status == t_Api.FILE_STATUS_COPIED) {
                 if (fs.existsSync(file_path_absolute)) {
                     rimraf.sync(file_path_absolute);
                 }
 
                 fs.writeFileSync(
                     file_path_absolute,
-                    fs.readFileSync(t_Api.absolute_path_from_relative_index_path(file.pull.copy.source.path.path, parameters.workdir))
+                    fs.readFileSync(t_Api.index_abs_path(file.pull.copy.source.path.path, parameters.workdir))
                 );
             } else if (file.pull.status == t_Api.FILE_STATUS_CHMOD) {
-                
             } else if (file.pull.status == t_Api.FILE_STATUS_DELETED) {
                 rimraf.sync(file_path_absolute);
             }
-
-            if ((process.platform != 'win32') && (file.pull.status != t_Api.FILE_STATUS_UNMODIFIED) && (file.pull.status != t_Api.FILE_STATUS_DELETED)) {
-                if (parameters.owner) {
-                    require('shelljs/global');
-                    var uid = parseInt(exec('id -u '+parameters.owner, {silent: true, async: false}).output.trim());
-                    var gid = parameters.group ? parseInt(exec('id -g '+parameters.group, {silent: true, async: false}).output.trim()): uid;
-                    fs.chownSync(
-                        file_path_absolute,
-                        uid,
-                        gid
-                    );
-                }
-                fs.chmodSync(file_path_absolute, file_mode);
-            }
         }
+
+        var zip_path = parameters.pack.path || t_Api.pack.path;
+
+        new JSZip.external.Promise(function (resolve, reject) {
+            fs.readFile(zip_path, function (error, data) {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(data);
+                }
+            });
+        }).then(function (data) {
+            return JSZip.loadAsync(data);
+        }).then(function (zip) {
+            zip.forEach(function (_path, _file) {
+                var _workdir_path = t_Api.index_abs_path(_path, parameters['workdir']);
+
+                // rimraf.sync(_workdir_path);
+
+                if (!_file.dir) {
+                    _file
+                    .nodeStream()
+                    .pipe(fs.createWriteStream(_workdir_path))
+                    .on('finish', function () {});
+                } else {
+                    if (!fs.existsSync(_workdir_path)) {
+                        fs.mkdirSync(_workdir_path);
+                    }
+                }
+            });
+
+            // return;
+
+            for (offset in sorted_index_keys) {
+                file = parameters.index[sorted_index_keys[offset]];
+
+                var _key;
+                var ignored;
+                var _continue = false;
+                for (_key in parameters.ignorelist) {
+                    ignored = parameters.ignorelist[_key];
+                    if (t_Api.is_path_at(file.path.path, ignored)) {
+                        _continue = true;
+                    }
+                }
+                if (_continue) {
+                    continue;
+                }
+                
+                file_content_buffer = undefined;
+                file_path_absolute = t_Api.index_abs_path(file.path.path, parameters.workdir);
+                
+                if ((typeof file.stat != 'undefined') && (typeof file.stat.mode != 'undefined')) {
+                    if (file.platform != 'win32') {
+                        file_mode = parseInt(parseInt(parseInt(file.stat.mode).toString(8))%1000).toString();
+                    } else {
+                        file_mode = '770';
+                    }
+                } else {
+                    file_mode = '770';
+                }
+
+                if ((process.platform != 'win32') && (file.pull.status != t_Api.FILE_STATUS_UNMODIFIED) && (file.pull.status != t_Api.FILE_STATUS_DELETED)) {
+                    if (parameters.owner) {
+                        const shelljs = require('shelljs');
+                        var uid = parseInt(shelljs.exec('id -u '+parameters.owner, {silent: true, async: false}).toString().trim());
+                        var gid = parameters.group ? parseInt(shelljs.exec('id -g '+parameters.group, {silent: true, async: false}).toString().trim()): uid;
+                        fs.chownSync(
+                            file_path_absolute,
+                            uid,
+                            gid
+                        );
+                    }
+                    fs.chmodSync(file_path_absolute, file_mode);
+                }
+            }
+        }).catch(function (error) {
+            console.log('[Error]:', error);
+        });
     };
 
     // -------------------------------------------------------------------
@@ -1220,7 +1351,8 @@ module.exports = function (_parameters) {
             type: 'host',
             host: {
                 "name": "",
-                "port": 5053,
+                "port": config.port,
+                "transfer_port": config.transfer_port,
                 "tls": {
                     "use_tls": true,
                     "key_file": "",
@@ -1304,17 +1436,21 @@ module.exports = function (_parameters) {
                 client.authorized = false;
 
                 client.push = {};
-                client.push.is_streaming = false;
-                client.push.pack = undefined;
-                client.push.as = undefined; // undefined or 'gzip'
+
+                client.push.index = {};
+                client.push.index.is_streaming = false;
+                client.push.index.pack = undefined;
+                client.push.index.as = undefined; // undefined or 'gzip'
+
+                client.push.pack = {};
+                client.push.pack.is_streaming = false;
+                client.push.pack.path = null;
 
                 t_Api.debug_print('['+client.ip+'] '+'connected');
 
                 socket.socket.on('error', function (error) {
                     t_Api.debug_print('\n  \033[91m['+client.ip+']: [Error] Socket error: '+util.inspect(error, true, null)+'\033[0m');
                 });
-
-                var asda = 0;
 
                 socket.on('data', function (data) {
                     t_Api.debug_print('['+client.ip+'] event: '+data.event);
@@ -1363,68 +1499,97 @@ module.exports = function (_parameters) {
                                     index: _index
                                 }
                             });
-                        } else if (data.event == 'start_stream_for_push_pack') {
-                            client.push.is_streaming = true;
-                            client.push.as = data.data.as;
+                        } else if (data.event == 'start_stream_index') {
+                            client.push.index.is_streaming = true;
+                            client.push.index.as = 'gzip';
 
                             socket.write({
-                                event: 'start_stream_for_push_pack_return',
+                                event: 'start_stream_index_return',
                                 data: {
                                     ok: true
                                 }
                             });
-                        } else if (data.event == 'data_stream_for_push_pack') {
-                            client.push.pack = new Buffer(data.data.pack);
+                        } else if (data.event == 'data_stream_index') {
+                            client.push.index.pack = new Buffer(data.data.pack);
 
                             socket.write({
-                                event: 'end_stream_for_push_pack',
+                                event: 'end_stream_index',
                                 data: {
                                     ok: true
                                 }
                             });
 
                             var _continue = function () {
-                                var unpacked_for_push_ok = true;
+                                var index_unpacked_ok = true;
 
                                 try {
-                                    client.push.pack = JSON.parse(client.push.pack.toString());
+                                    client.push.index.pack = JSON.parse(client.push.index.pack.toString());
                                 } catch (exception) {
-                                    unpacked_for_push_ok = false;
+                                    index_unpacked_ok = false;
                                     t_Api.debug_print('\n  \033[91m['+client.ip+']: [Error] Pack json could not be parsed.', exception);
                                     t_Api.debug_print('\033[0m');
                                 } finally {
                                     
                                 }
 
-                                client.push.is_streaming = false;
-
-                                t_Api.apply_pack_to_workdir({
-                                    pack: client.push.pack,
-                                    workdir: t_Api.parameters['workdir']
-                                });
+                                client.push.index.is_streaming = false;
                                 
                                 socket.write({
-                                    event: 'unpacked_for_push',
+                                    event: 'index_unpacked',
                                     data: {
-                                        ok: unpacked_for_push_ok
+                                        ok: index_unpacked_ok
                                     }
                                 });
                             };
 
-                            if (client.push.as == 'gzip') {
-                                zlib.gunzip(client.push.pack, function (error, pack) {
-                                    client.push.pack = pack;
+                            if (client.push.index.as == 'gzip') {
+                                zlib.gunzip(client.push.index.pack, function (error, pack) {
+                                    client.push.index.pack = pack;
                                     _continue();
                                 });
                             } else {
                                 _continue();
                             }
-                        } if (data.event == 'publish') {
+                        } else if (data.event == 'start_stream_pack') {
+                            t_Api.need_tmp_dir();
+                            t_Api.pack.path = t_Api.tmp.path+fs_path.sep+'hpack.zip';
+                            t_Api.pack.write_stream = fs.createWriteStream(t_Api.pack.path);
+                            t_Api.pack.write_stream.on('open', function () {
+                                socket.write({
+                                    event: 'start_stream_pack_return',
+                                    data: {
+                                        ok: true
+                                    }
+                                });
+                            });
+                        } else if (data.event == 'chunk_stream_pack') {
+                            t_Api.pack.write_stream.write(new Buffer(data.chunk.data));
+                        } else if (data.event == 'end_stream_pack') {
+                            t_Api.pack.write_stream.end();
+
+                            t_Api.apply_pack({
+                                index: client.push.index.pack,
+                                workdir: t_Api.parameters['workdir'],
+                                pack: {
+                                    path: client.push.pack.path
+                                }
+                            });
+
+                            socket.write({
+                                event: 'pack_unpacked',
+                                data: {
+                                    ok: true
+                                }
+                            });
+                        } else if (data.event == 'publish') {
                             if (!fs.existsSync(data.data.dir)) {
                                 socket.write({
                                     event: 'publish_return',
                                     data: {
-                                        ok: false
+                                        ok: false,
+                                        error: {
+                                            message: 'Target dir does not exists.'
+                                        }
                                     }
                                 });
                             } else {
@@ -1446,14 +1611,17 @@ module.exports = function (_parameters) {
 
                                 var production_dir_index_diff = t_Api.create_index_diff(host_index, production_dir_index, total_ignorelist);
 
-                                t_Api.create_pack_from_index({
+                                t_Api.create_pack({
                                     index: production_dir_index_diff,
-                                    return: function (pack) {
-                                        t_Api.apply_pack_to_workdir({
-                                            pack: pack.pack,
+                                    return: function (parameters) {
+                                        t_Api.apply_pack({
+                                            index: parameters.index,
                                             workdir: data.data.dir,
                                             owner: data.data.owner,
                                             group: data.data.group,
+                                            pack: {
+                                                path: t_Api.pack.path
+                                            }
                                         });
 
                                         socket.write({
@@ -1475,6 +1643,8 @@ module.exports = function (_parameters) {
             });
 
             server.listen(t_HostRepo.config['host']['port']);
+
+            // -------------------------------------------------------------------
 
             result['error'] = false;
             return result;

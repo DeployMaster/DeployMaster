@@ -27,14 +27,14 @@
  *
  */
 
-var util = require('util');
-var readline = require('readline');
-var rimraf = require('rimraf');
-var nomnom = require('nomnom');
-var read = require('read');
+const util = require('util');
+const readline = require('readline');
+const rimraf = require('rimraf');
+const nomnom = require('nomnom');
+const read = require('read');
 
-var config = require('./config.js');
-var Api = require('./api.js');
+const config = require('./config.js');
+const Api = require('./api.js');
 
 var api;
 
@@ -88,6 +88,8 @@ CLI_API_EVENT_HANDLERS.on_ask_for_tls_certificate = function (parameters) {
                     trust: false
                 });
             }
+
+            console.log('');
         }
     );
 };
@@ -99,7 +101,7 @@ CLI_API_EVENT_HANDLERS.on_ask_for_password = function (parameters) {
             input: process.stdin,
             output: process.stdout,
             silent: true,
-            replace: '*'
+            replace: ''
         },
         parameters.return
     );
@@ -353,7 +355,12 @@ var cmd_connect = function (parameters) {
 
     var remote_new = {};
     remote_new['address'] = _split[0];
-    remote_new['port'] = _split[1];
+    var ports = _split[1].split(',');
+    remote_new['port'] = ports[0];
+    if (ports.length > 1) {
+        remote_new['transfer_port'] = ports[1];
+    }
+
 
     api.parameters['repo']['config']['repo']['remote']['address'] = remote_new['address'];
     api.parameters['repo']['config']['repo']['remote']['port'] = remote_new['port'];
@@ -539,17 +546,21 @@ var cmd_push = function () {
                                     console.log('');
                                     console.log('  Packing all data..');
 
-                                    api.create_pack_from_index({
+                                    api.create_pack({
                                         index: index_diff,
                                         as: 'gzip',
-                                        return: function (pack) {
+                                        return: function (parameters) {
+                                            if (!parameters.ok) {
+                                                console.log('  \033[91m[Error] Packer error.\033[0m');
+                                                console.log('');
+                                                process.exit(0);
+                                            }
+
                                             console.log('  Uploading all data..');
                                             api.repo.push_to_host_repo({
-                                                pack: pack.pack,
+                                                pack: parameters.index,
                                                 as: 'gzip',
                                                 on_data: function (sended, total) {
-                                                    console.log('On data');
-                                                    return;
                                                     var percent = parseInt(sended*100/total);
                                                     process.stdout.clearLine();
                                                     process.stdout.cursorTo(0);

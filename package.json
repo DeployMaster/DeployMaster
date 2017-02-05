@@ -1,0 +1,28 @@
+{
+    "name": "DeployMaster",
+    "description": "Fast deployment tool",
+    "version": "0.1.0",
+    "homepage": "https://github.com/DeployMaster/DeployMaster",
+    "license": "MIT",
+    "bin": {
+        "deploymaster": "./deploymaster.js"
+    },
+    "scripts": {
+        "preinstall": "sudo npm i -g shelljs"
+    },
+    "dependencies": {
+        "glob": "latest",
+        "clone": "latest",
+        "json-tcp-socket": "latest",
+        "jszip": "latest",
+        "uniqid": "latest",
+        "rimraf": "latest",
+        "nomnom": "latest",
+        "read": "latest",
+        "shelljs": "latest"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DeployMaster/DeployMaster.git"
+    }
+}

@@ -12,5 +12,6 @@ module.exports = {
         }
     },
     host: '127.0.0.1',
-    port: 5053
+    port: 5053,
+    transfer_port: 5054
 };
