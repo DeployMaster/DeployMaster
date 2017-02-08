@@ -37,7 +37,7 @@ module.exports = tools;
 tools.Asem = function (callback, this_arg, parameters) {
     this.lock_count = 0;
     if (callback) this.callback = callback;
-    if (parameters == null) {
+    if (parameters === null) {
         this_arg = null;
         parameters = this_arg;
     }
@@ -56,7 +56,7 @@ tools.Asem.prototype.leave = function (args) {
         }, this);
     }
     
-    if (--this.lock_count == 0)
+    if (--this.lock_count === 0)
         this.callback.apply(this.this_arg, this.parameters);
 };
 
@@ -71,7 +71,7 @@ tools.Asem.prototype.leave_or_call = function (args) {
         this.lock_count = this.lock_count-1;
     }
     
-    if (this.lock_count == 0)
+    if (this.lock_count === 0)
         this.callback.apply(this.this_arg, this.parameters);
 };
 
