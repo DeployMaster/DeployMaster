@@ -1,13 +1,21 @@
 # Deploy Master
 Fast, flexible, clean deployment tool
 
-[![npm package](https://img.shields.io/npm/v/DeployMaster.svg?style=flat-square)](https://www.npmjs.com/package/deploymaster)
+[![npm package](https://img.shields.io/npm/v/deploymaster.svg?style=flat-square)](https://www.npmjs.com/package/deploymaster)
 
 ## Installation
 
 ##### Requirements
 
 DeployMaster is written in [node.js](https://nodejs.org/), you should have latest stable version of node.
+
+##### npm
+
+You can install DeployMaster with npm (as root)
+
+```bash
+npm install -g deploymaster
+```
 
 ##### Installing from GIT
 
