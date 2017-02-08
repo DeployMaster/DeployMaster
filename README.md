@@ -17,6 +17,8 @@ You can install DeployMaster with npm (as root)
 npm install -g deploymaster
 ```
 
+..and you can run it! `deploymaster`
+
 ##### Installing from GIT
 
 You can install DeployMaster with git, following commands:
@@ -25,8 +27,6 @@ You can install DeployMaster with git, following commands:
 git clone https://github.com/DeployMaster/DeployMaster.git DeployMaster
 cd DeployMaster && npm install
 ```
-
-..and you can run it! `node deploymaster`
 
 ## Usage
 
