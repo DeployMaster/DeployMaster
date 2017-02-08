@@ -1,6 +1,8 @@
 # Deploy Master
 Fast, flexible, clean deployment tool
 
+[![npm package](https://img.shields.io/npm/v/DeployMaster.svg?style=flat-square)](https://www.npmjs.com/package/deploymaster)
+
 ## Installation
 
 ##### Requirements

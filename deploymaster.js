@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /*
  * This file is part of DeployMaster (https://github.com/DeployMaster/DeployMaster)
  * 
@@ -287,7 +288,7 @@ var cmd_config = function (parameters) {
     check_for_init();
     api.current_index();
 
-    if (parameters.key == undefined) {
+    if (parameters.key === undefined) {
         console.log(util.inspect(t_Api.parameters['repo']['config']['repo'], true, null));
     } else {
         var configception = parameters.key.split('.');
@@ -309,10 +310,10 @@ var cmd_config = function (parameters) {
             }
 
             if (key_index == key_index_last) {
-                if (parameters.value != undefined) {
+                if (parameters.value !== undefined) {
                     setat[key] = parameters.value;
                     is_set = true;
-                } else if (parameters.add != undefined) {
+                } else if (parameters.add !== undefined) {
                     setat[key].push(parameters.add);
                     is_set = true;
                 } else if (parameters.delete) {
@@ -371,7 +372,7 @@ var cmd_connect = function (parameters) {
     if (result) {
         console.log('\n  \033[32mOk.\033[0m');
     } else {
-        console.log('\n  \033[91m[Error] An error has been occured while saving repo config on file system.\033[0m')
+        console.log('\n  \033[91m[Error] An error has been occured while saving repo config on file system.\033[0m');
     }
 
     console.log('');
@@ -447,7 +448,7 @@ var cmd_status = function (parameters) {
                                     console.log('');
 
                                     if (typeof parameters['show-files'] != 'undefined') {
-                                        if (index_diff_sorted.length == 0) {
+                                        if (index_diff_sorted.length === 0) {
                                             console.log('  There is no modified file');
                                         } else {
                                             console.log('  Modified Files\n');
@@ -638,7 +639,7 @@ var cmd_production = function (parameters) {
         console.log('Repo is removed.');
     } else {
         var keys = Object.keys(api.parameters['repo']['config']['repo']['remote']['production_repos']);
-        if (keys.length == 0) {
+        if (keys.length === 0) {
             console.log('');
             console.log('  There is not production repo.');
             console.log('\n  \033[36m[Tip] Use deploymaster production --set REPONAME --dir REMOTEDIR --owner USER --group GROUP\033[0m');

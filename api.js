@@ -256,7 +256,7 @@ module.exports = function (_parameters) {
 
         if (fs.existsSync(t_Api.parameters['file_ignorelist'])) {
             var ignorelist = fs.readFileSync(t_Api.parameters['file_ignorelist'], 'utf8').toString().replace(new RegExp('\r', 'g'), '');
-            t_Api.parameters['repo']['ignorelist'] = ignorelist != '' ? ignorelist.split('\n'): [];
+            t_Api.parameters['repo']['ignorelist'] = ignorelist !== '' ? ignorelist.split('\n'): [];
         } else {
             t_Api.parameters['repo']['ignorelist'] = [];
         }
@@ -313,7 +313,7 @@ module.exports = function (_parameters) {
             var file_path_relative = t_Api.relative_index_path(file_path, parameters.workdir);
 
             // ignore current path "."
-            if (file_path_relative == '') {return;}
+            if (file_path_relative === '') {return;}
 
             if (t_Api.is_path_at(file_path_relative, '/.deploymaster')) {
                 return true;
@@ -711,9 +711,10 @@ module.exports = function (_parameters) {
      */
     t_Api.get_ignorelist = function (workdir) {
         var production_dir_ignorelist_file_path = fs_path.resolve(workdir+fs_path.sep+'.ignorelist.deploymaster');
+        var production_dir_ignorelist;
         if (fs.existsSync(production_dir_ignorelist_file_path)) {
-            var production_dir_ignorelist = fs.readFileSync(production_dir_ignorelist_file_path).toString().replace(new RegExp('\r', 'g'), '');
-            production_dir_ignorelist = production_dir_ignorelist != '' ? production_dir_ignorelist.split('\n'): [];
+            production_dir_ignorelist = fs.readFileSync(production_dir_ignorelist_file_path).toString().replace(new RegExp('\r', 'g'), '');
+            production_dir_ignorelist = production_dir_ignorelist !== '' ? production_dir_ignorelist.split('\n'): [];
         } else {
             production_dir_ignorelist = [];
         }
@@ -740,7 +741,7 @@ module.exports = function (_parameters) {
 
         var zip = new JSZip();
 
-        for (_key in parameters.index) {
+        for (var _key in parameters.index) {
             _file = parameters.index[_key];
 
             if (
@@ -773,7 +774,7 @@ module.exports = function (_parameters) {
                         index: result,
                         ok: true
                     });
-                })
+                });
             } else {
                 parameters.return({
                     index: pack,
@@ -855,9 +856,9 @@ module.exports = function (_parameters) {
         t_DevelopmentRepo.init = function () {
             var result = true;
 
-            result = result && (fs.mkdirSync(t_Api.parameters['deploymaster_path']) == undefined)
-            && (fs.writeFileSync(t_Api.parameters['file_config'], JSON.stringify(t_Api.config_initial)) == undefined)
-            && (fs.writeFileSync(t_Api.parameters['file_index'], '{}') == undefined);
+            result = result && (fs.mkdirSync(t_Api.parameters['deploymaster_path']) === undefined)
+            && (fs.writeFileSync(t_Api.parameters['file_config'], JSON.stringify(t_Api.config_initial)) === undefined)
+            && (fs.writeFileSync(t_Api.parameters['file_index'], '{}') === undefined);
 
             t_Api.update_index();
 
@@ -1192,7 +1193,7 @@ module.exports = function (_parameters) {
      * }
      */
     t_Api.apply_pack = function (parameters) {
-        if (Object.keys(parameters.index).length == 0) {
+        if (Object.keys(parameters.index).length === 0) {
             return;
         }
 
@@ -1203,7 +1204,7 @@ module.exports = function (_parameters) {
             parameters.group = false;
         }
 
-        if (parameters.ignorelist == undefined) {
+        if (parameters.ignorelist === undefined) {
             parameters.ignorelist = [];
         }
 
@@ -1367,9 +1368,9 @@ module.exports = function (_parameters) {
         t_HostRepo.init = function () {
             var result = true;
 
-            result = result && (fs.mkdirSync(t_Api.parameters['deploymaster_path']) == undefined)
-            && (fs.writeFileSync(t_Api.parameters['file_config'], JSON.stringify(t_HostRepo.config_initial)) == undefined)
-            && (fs.writeFileSync(t_Api.parameters['file_index'], '{}') == undefined);
+            result = result && (fs.mkdirSync(t_Api.parameters['deploymaster_path']) === undefined)
+            && (fs.writeFileSync(t_Api.parameters['file_config'], JSON.stringify(t_HostRepo.config_initial)) === undefined)
+            && (fs.writeFileSync(t_Api.parameters['file_index'], '{}') === undefined);
 
             t_Api.update_index();
 
@@ -1389,12 +1390,14 @@ module.exports = function (_parameters) {
         t_HostRepo.host = function () {
             var result = {};
 
+            var server;
+
             if (t_HostRepo.config['host']['tls']['use_tls']) {
                 var tls_parameters = {};
 
                 if (
-                    t_HostRepo.config['host']['tls']['key_file'] == '' &&
-                    t_HostRepo.config['host']['tls']['cert_file'] == ''
+                    t_HostRepo.config['host']['tls']['key_file'] === '' &&
+                    t_HostRepo.config['host']['tls']['cert_file'] === ''
                 ) {
                     tls_parameters['key'] = fs.readFileSync(__dirname+'/config/ssl/deploymaster.key');
                     tls_parameters['cert'] = fs.readFileSync(__dirname+'/config/ssl/deploymaster.crt');
@@ -1417,13 +1420,13 @@ module.exports = function (_parameters) {
                     tls_parameters['cert'] = fs.readFileSync(t_HostRepo.config['host']['tls']['cert_file']);
                 }
 
-                var server = new (new JSONTCPSOCKET({tls: true})).Server(tls_parameters);
+                server = new (new JSONTCPSOCKET({tls: true})).Server(tls_parameters);
 
                 server.on('secureConnection', function (socket) {
                     server.emit('connected', socket);
                 });
             } else {
-                var server = new (new JSONTCPSOCKET()).Server();
+                server = new (new JSONTCPSOCKET()).Server();
 
                 server.on('connection', function (socket) {
                     server.emit('connected', socket);

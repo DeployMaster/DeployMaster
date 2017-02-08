@@ -1,14 +1,25 @@
 {
-    "name": "DeployMaster",
+    "name": "deploymaster",
     "description": "Fast deployment tool",
     "version": "0.1.0",
     "homepage": "https://github.com/DeployMaster/DeployMaster",
     "license": "MIT",
+    "author": "Oğuzhan Eroğlu <rohanrhu2@gmail.com> (http://oguzhaneroglu.com/)",
     "bin": {
         "deploymaster": "./deploymaster.js"
     },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DeployMaster/DeployMaster"
+    },
+    "keywords": [
+        "deployment",
+        "production",
+        "testing",
+        "productivity",
+        "tools"
+    ],
     "scripts": {
-        "preinstall": "sudo npm i -g shelljs"
     },
     "dependencies": {
         "glob": "latest",
@@ -24,5 +35,9 @@
     "repository": {
         "type": "git",
         "url": "https://github.com/DeployMaster/DeployMaster.git"
+    },
+    "preferGlobal": true,
+    "bugs": {
+        "url": "https://github.com/DeployMaster/DeployMaster/issues"
     }
 }
