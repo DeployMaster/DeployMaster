@@ -60,13 +60,13 @@ node deploymaster.js <command> --help
 ```bash
 mkdir /path/to/project_host
 cd /path/to/project_host
-node /path/to/deploymaster.js init-host
+deploymaster init-host
 ```
 
 ##### Define a password for host repo
 
 ```bash
-node /path/to/deploymaster.js password --set NEWPASSWORD
+deploymaster password --set NEWPASSWORD
 ```
 
 ##### Set TLS for host repo
@@ -74,13 +74,13 @@ node /path/to/deploymaster.js password --set NEWPASSWORD
 Enable TLS
 
 ```bash
-node /path/to/deploymaster.js config --key host.tls.use_tls --value true
+deploymaster config --key host.tls.use_tls --value true
 ```
 
 Disable TLS
 
 ```bash
-node /path/to/deploymaster.js config --key host.tls.use_tls --value false
+deploymaster config --key host.tls.use_tls --value false
 ```
 
 ##### Set SSL/TLS certificate
@@ -88,25 +88,25 @@ node /path/to/deploymaster.js config --key host.tls.use_tls --value false
 Set RSA Private Key file
 
 ```bash
-node /path/to/deploymaster.js config --key host.tls.key_file --value "/path/to/private.key"
+deploymaster config --key host.tls.key_file --value "/path/to/private.key"
 ```
 
 Set RSA Public Key (Cert) file
 
 ```bash
-node /path/to/deploymaster.js config --key host.tls.cert_file --value "/path/to/public.crt"
+deploymaster config --key host.tls.cert_file --value "/path/to/public.crt"
 ```
 
 ##### Start repository hosting
 
 ```bash
-node /path/to/deploymaster.js start-host
+deploymaster start-host
 ```
 
 Or
 
 ```bash
-node /path/to/deploymaster.js start-host --workdir /path/to/project_host
+deploymaster start-host --workdir /path/to/project_host
 ```
 
 ##### Create a development repository
@@ -114,25 +114,25 @@ node /path/to/deploymaster.js start-host --workdir /path/to/project_host
 ```bash
 mkdir /path/to/project_dev
 cd /path/to/project_dev
-node /path/to/deploymaster.js init-development
+deploymaster init-development
 ```
 
 ##### See config
 
 ```bash
-node /path/to/deploymaster.js config
+deploymaster config
 ```
 
 Also see
 
 ```bash
-node /path/to/deploymaster.js config --help
+deploymaster config --help
 ```
 
 ##### Connect development repo to host repo
 
 ```bash
-node /path/to/deploymaster.js connect --host 127.0.0.1:5053
+deploymaster connect --host 127.0.0.1:5053
 ```
 
 ##### Set TLS for development repo
@@ -140,13 +140,13 @@ node /path/to/deploymaster.js connect --host 127.0.0.1:5053
 Enable TLS
 
 ```bash
-node /path/to/deploymaster.js config --key remote.tls.use_tls --value true
+deploymaster config --key remote.tls.use_tls --value true
 ```
 
 Disable TLS
 
 ```bash
-node /path/to/deploymaster.js config --key remote.tls.use_tls --value false
+deploymaster config --key remote.tls.use_tls --value false
 ```
 
 ##### Connect development repo to production
@@ -160,13 +160,13 @@ mkdir /path/to/production
 Add production repo to developmen repo
 
 ```bash
-node /path/to/deploymaster.js production --set production --dir /path/to/production
+deploymaster production --set production --dir /path/to/production
 ```
 
 Set owner and group for production files (for POSIX)
 
 ```bash
-node /path/to/deploymaster.js production --set production --dir /path/to/production --owner username --group groupname
+deploymaster production --set production --dir /path/to/production --owner username --group groupname
 ```
 
 ##### See status
@@ -174,7 +174,7 @@ node /path/to/deploymaster.js production --set production --dir /path/to/product
 ```bash
 touch test
 echo "test file" >> test
-node /path/to/deploymaster.js status --repo production
+deploymaster status --repo production
 ```
 
 If you are using TLS, you'll se this
@@ -190,13 +190,13 @@ If its ok, type "y" or "p" and press enter else type "n" and press enter
 ##### Push changes to host repo
 
 ```bash
-node /path/to/deploymaster.js push
+deploymaster push
 ```
 
 ##### Publish all to production
 
 ```bash
-node /path/to/deploymaster.js publish --repo production
+deploymaster publish --repo production
 ```
 
 ##### Ignorelist

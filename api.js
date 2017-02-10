@@ -745,17 +745,17 @@ module.exports = function (_parameters) {
             _file = parameters.index[_key];
 
             if (
-                (_file.type == 'file')
-                &&
-                (
-                    (_file.pull.status == t_Api.FILE_STATUS_NEW)
-                    ||
-                    (_file.pull.status == t_Api.FILE_STATUS_MODIFIED)
-                )
+                (_file.pull.status == t_Api.FILE_STATUS_NEW)
+                ||
+                (_file.pull.status == t_Api.FILE_STATUS_MODIFIED)
             ) {
-                zip.file(_file.path.path, fs.createReadStream(
-                    t_Api.index_abs_path(_file.path.path, t_Api.parameters['workdir'])
-                ));
+                if (_file.type == 'file') {
+                    zip.file(_file.path.path, fs.createReadStream(
+                        t_Api.index_abs_path(_file.path.path, t_Api.parameters['workdir'])
+                    ));
+                } else if (_file.type == 'directory') {
+                    zip.folder(_file.path.path);
+                }
             }
         }
 
