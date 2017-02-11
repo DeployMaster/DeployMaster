@@ -31,7 +31,7 @@ cd DeployMaster && npm install
 ## Usage
 
 ```bash
-Usage: node deploymaster.js <command> [options..]
+Usage: deploymaster <command> [options..]
 
 command
   init-host            Create new hosting repo
@@ -52,7 +52,7 @@ command
 ##### Help for a command
 
 ```
-node deploymaster.js <command> --help
+deploymaster <command> --help
 ```
 
 ##### Create a host repository

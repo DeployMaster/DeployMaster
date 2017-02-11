@@ -754,6 +754,8 @@ var cmd_publish = function (parameters) {
 
 // -------------------------------------------------------------------
 
+nomnom.script('deploymaster');
+
 nomnom.command('init-host')
     .callback(cmd_init_host)
     .help('Create new hosting repo');
