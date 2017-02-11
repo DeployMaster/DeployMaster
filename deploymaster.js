@@ -571,7 +571,6 @@ var cmd_push = function () {
                                                     process.stdout.clearLine();
                                                     process.stdout.cursorTo(0);
                                                     console.log('  All data is uploaded..');
-                                                    console.log('');
                                                     console.log('  Unpacking all data..');
                                                 },
                                                 unpacked: function (parameters) {

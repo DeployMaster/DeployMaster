@@ -39,6 +39,7 @@ const uniqid = require('uniqid');
 const JSZip = require('jszip');
 const zlib = require('zlib');
 const rimraf = require('rimraf');
+const shelljs = require('shelljs');
 
 const config = require('./config.js');
 const tools = require('./tools.js');
@@ -1112,20 +1113,30 @@ module.exports = function (_parameters) {
                             });
                         };
 
+                        var zip_stats = fs.statSync(t_Api.pack.path);
+
+                        var byte_offset = 0;
+
                         t_DevelopmentRepo.parameters['remote']['callbacks']['start_stream_pack_return'] = function () {
                             var read_stream = fs.createReadStream(t_Api.pack.path, {
                                 // highWaterMark: 1 * 64,
                             });
 
                             read_stream.on('data', function (chunk) {
+                                byte_offset += chunk.length;
+
                                 t_DevelopmentRepo.parameters['remote']['socket'].write({
                                     event: 'chunk_stream_pack',
                                     chunk: chunk
                                 });
+
+                                parameters.on_data(byte_offset, zip_stats.size);
                             }).on('end', function () {
                                 t_DevelopmentRepo.parameters['remote']['socket'].write({
                                     event: 'end_stream_pack'
                                 });
+
+                                parameters.on_data_sended();
                             });
                         };
                     };
@@ -1210,56 +1221,6 @@ module.exports = function (_parameters) {
 
         var sorted_index_keys = t_Api.sort_index_by_status(parameters.index);
 
-        var offset;
-        var file;
-        var file_content_buffer;
-        var file_path_absolute;
-        var file_mode;
-
-        for (offset in sorted_index_keys) {
-            file = parameters.index[sorted_index_keys[offset]];
-
-            var _key;
-            var ignored;
-            var _continue = false;
-            for (_key in parameters.ignorelist) {
-                ignored = parameters.ignorelist[_key];
-                if (t_Api.is_path_at(file.path.path, ignored)) {
-                    _continue = true;
-                }
-            }
-            if (_continue) {
-                continue;
-            }
-            
-            file_content_buffer = undefined;
-            file_path_absolute = t_Api.index_abs_path(file.path.path, parameters.workdir);
-            
-            if ((typeof file.stat != 'undefined') && (typeof file.stat.mode != 'undefined')) {
-                if (file.platform != 'win32') {
-                    file_mode = parseInt(parseInt(parseInt(file.stat.mode).toString(8))%1000).toString();
-                } else {
-                    file_mode = '770';
-                }
-            } else {
-                file_mode = '770';
-            }
-
-            if (file.pull.status == t_Api.FILE_STATUS_COPIED) {
-                if (fs.existsSync(file_path_absolute)) {
-                    rimraf.sync(file_path_absolute);
-                }
-
-                fs.writeFileSync(
-                    file_path_absolute,
-                    fs.readFileSync(t_Api.index_abs_path(file.pull.copy.source.path.path, parameters.workdir))
-                );
-            } else if (file.pull.status == t_Api.FILE_STATUS_CHMOD) {
-            } else if (file.pull.status == t_Api.FILE_STATUS_DELETED) {
-                rimraf.sync(file_path_absolute);
-            }
-        }
-
         var zip_path = parameters.pack.path || t_Api.pack.path;
 
         new JSZip.external.Promise(function (resolve, reject) {
@@ -1273,26 +1234,22 @@ module.exports = function (_parameters) {
         }).then(function (data) {
             return JSZip.loadAsync(data);
         }).then(function (zip) {
-            zip.forEach(function (_path, _file) {
-                var _workdir_path = t_Api.index_abs_path(_path, parameters['workdir']);
+            var offset;
+            var length;
+            var file;
+            var file_content_buffer;
+            var file_path_absolute;
 
-                // rimraf.sync(_workdir_path);
+            var uid = parseInt(shelljs.exec('id -u '+parameters.owner, {silent: true, async: false}).toString().trim());
+            var gid = parameters.group ? parseInt(shelljs.exec('id -g '+parameters.group, {silent: true, async: false}).toString().trim()): uid;
 
-                if (!_file.dir) {
-                    _file
-                    .nodeStream()
-                    .pipe(fs.createWriteStream(_workdir_path))
-                    .on('finish', function () {});
-                } else {
-                    if (!fs.existsSync(_workdir_path)) {
-                        fs.mkdirSync(_workdir_path);
-                    }
-                }
-            });
+            offset = -1;
+            length = sorted_index_keys.length;
 
-            // return;
+            // for (offset in sorted_index_keys)
+            var loop = () => {
+                offset++;
 
-            for (offset in sorted_index_keys) {
                 file = parameters.index[sorted_index_keys[offset]];
 
                 var _key;
@@ -1305,38 +1262,91 @@ module.exports = function (_parameters) {
                     }
                 }
                 if (_continue) {
-                    continue;
+                    if (offset >= length-1) {
+                        parameters.return({ok: true});
+                        return;
+                    }
+
+                    loop();
+                    return;
                 }
-                
-                file_content_buffer = undefined;
-                file_path_absolute = t_Api.index_abs_path(file.path.path, parameters.workdir);
-                
-                if ((typeof file.stat != 'undefined') && (typeof file.stat.mode != 'undefined')) {
-                    if (file.platform != 'win32') {
-                        file_mode = parseInt(parseInt(parseInt(file.stat.mode).toString(8))%1000).toString();
+
+                var continue_after_writing = () => {
+                    var file_mode;
+
+                    if ((file.stat !== undefined) && (file.stat.mode !== undefined)) {
+                        if (file.platform != 'win32') {
+                            file_mode = parseInt(parseInt(parseInt(file.stat.mode).toString(8))%1000).toString();
+                        } else {
+                            file_mode = '770';
+                        }
                     } else {
                         file_mode = '770';
                     }
-                } else {
-                    file_mode = '770';
-                }
 
-                if ((process.platform != 'win32') && (file.pull.status != t_Api.FILE_STATUS_UNMODIFIED) && (file.pull.status != t_Api.FILE_STATUS_DELETED)) {
-                    if (parameters.owner) {
-                        const shelljs = require('shelljs');
-                        var uid = parseInt(shelljs.exec('id -u '+parameters.owner, {silent: true, async: false}).toString().trim());
-                        var gid = parameters.group ? parseInt(shelljs.exec('id -g '+parameters.group, {silent: true, async: false}).toString().trim()): uid;
-                        fs.chownSync(
-                            file_path_absolute,
-                            uid,
-                            gid
-                        );
+                    if ((process.platform != 'win32') && (file.pull.status != t_Api.FILE_STATUS_UNMODIFIED) && (file.pull.status != t_Api.FILE_STATUS_DELETED)) {
+                        if (parameters.owner) {
+                            fs.chownSync(
+                                file_path_absolute,
+                                uid,
+                                gid
+                            );
+                        }
+                        fs.chmodSync(file_path_absolute, file_mode);
                     }
-                    fs.chmodSync(file_path_absolute, file_mode);
+
+                    if (offset >= length-1) {
+                        parameters.return({ok: true});
+                        return;
+                    }
+
+                    loop();
+                };
+                
+                file_content_buffer = undefined;
+                file_path_absolute = t_Api.index_abs_path(file.path.path, parameters.workdir);
+
+                if (file.pull.status == t_Api.FILE_STATUS_NEW) {
+                    console.log('new:', file.type+':'+file.path.path);
+                    if (file.type == 'file') {
+                        zip
+                        .file(file.path.path)
+                        .nodeStream()
+                        .pipe(
+                            fs.createWriteStream(file_path_absolute)
+                        ).on('finish', continue_after_writing);
+                    } else if (file.type == 'directory') {
+                        if (!fs.existsSync(file_path_absolute)) {
+                            fs.mkdirSync(file_path_absolute);
+                        }
+                        continue_after_writing();
+                    }
+                } else if (file.pull.status == t_Api.FILE_STATUS_COPIED) {
+                    if (fs.existsSync(file_path_absolute)) {
+                        rimraf.sync(file_path_absolute);
+                    }
+
+                    fs.createReadStream(t_Api.index_abs_path(file.pull.copy.source.path.path, parameters.workdir))
+                    .pipe(
+                        fs.createWriteStream(file_path_absolute)
+                    ).on('finish', continue_after_writing);
+                } else if (file.pull.status == t_Api.FILE_STATUS_MODIFIED) {
+                    zip
+                    .file(file.path.path)
+                    .nodeStream()
+                    .pipe(
+                        fs.createWriteStream(file_path_absolute)
+                    ).on('finish', continue_after_writing);
+                } else if (file.pull.status == t_Api.FILE_STATUS_DELETED) {
+                    rimraf.sync(file_path_absolute);
+                    continue_after_writing();
                 }
-            }
+            };
+
+            loop();
         }).catch(function (error) {
             console.log('[Error]:', error);
+            parameters.return({ok: false});
         });
     };
 
@@ -1575,13 +1585,14 @@ module.exports = function (_parameters) {
                                 workdir: t_Api.parameters['workdir'],
                                 pack: {
                                     path: client.push.pack.path
-                                }
-                            });
-
-                            socket.write({
-                                event: 'pack_unpacked',
-                                data: {
-                                    ok: true
+                                },
+                                return: function (parameters) {
+                                    socket.write({
+                                        event: 'pack_unpacked',
+                                        data: {
+                                            ok: parameters.ok
+                                        }
+                                    });
                                 }
                             });
                         } else if (data.event == 'publish') {
@@ -1624,13 +1635,14 @@ module.exports = function (_parameters) {
                                             group: data.data.group,
                                             pack: {
                                                 path: t_Api.pack.path
-                                            }
-                                        });
-
-                                        socket.write({
-                                            event: 'publish_return',
-                                            data: {
-                                                ok: true
+                                            },
+                                            return: function (parameters) {
+                                                socket.write({
+                                                    event: 'publish_return',
+                                                    data: {
+                                                        ok: parameters.ok
+                                                    }
+                                                });
                                             }
                                         });
                                     }
