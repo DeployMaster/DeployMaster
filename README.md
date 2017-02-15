@@ -55,6 +55,27 @@ command
 deploymaster <command> --help
 ```
 
+### Install systemd service
+
+```bash
+sudo deploymaster install-service
+```
+
+You can remove systemd service with;
+
+```bash
+sudo deploymaster remove-service
+```
+
+..or you can install/remove for specific port;
+
+```bash
+sudo deploymaster install-service --port 5053
+sudo deploymaster remove-service --port 5053
+```
+
+### ..or start hosting with a directory
+
 ##### Create a host repository
 
 ```bash
@@ -108,6 +129,8 @@ Or
 ```bash
 deploymaster start-host --workdir /path/to/project_host
 ```
+
+#### Development side
 
 ##### Create a development repository
 
@@ -177,7 +200,7 @@ echo "test file" >> test
 deploymaster status --repo production
 ```
 
-If you are using TLS, you'll se this
+If you are using TLS, you'll see this
 
 ```bash
 Certificate fingerprint: 69:5B:97:20:D3:7B:56:08:8C:80:36:FE:6A:41:6F:A5:36:08:4B:E2

@@ -29,10 +29,18 @@
  */
 
 const util = require('util');
+const crypto = require('crypto');
+const os = require('os');
+const fs = require('fs');
+const fs_path = require('path');
 const readline = require('readline');
 const rimraf = require('rimraf');
 const nomnom = require('nomnom');
 const read = require('read');
+const shelljs = require('shelljs');
+const prompt = require('prompt-sync')({
+    sigint: true
+});
 
 const config = require('./config.js');
 const Api = require('./api.js');
@@ -57,7 +65,7 @@ var CLI_API_EVENT_HANDLERS = {};
 
 CLI_API_EVENT_HANDLERS.on_connection_failed = function (parameters) {
     console.log('');
-    console.log('  \033[91m[Error] Connection failed to host repo. ('+parameters.error.description+')\033[0m');
+    console.log('\033[91m[Error] Connection failed to host repo. ('+parameters.error.description+')\033[0m');
     console.log('');
 };
 
@@ -113,7 +121,7 @@ CLI_API_EVENT_HANDLERS.on_authorize = function (parameters) {
         password: parameters.password,
         return: function (result) {
             if (!result.authorized) {
-                console.log('  \033[91m[Error] Authorization failed.\033[0m');
+                console.log('\033[91m[Error] Authorization failed.\033[0m');
                 console.log('');
                 process.exit(0);
             }
@@ -125,7 +133,7 @@ CLI_API_EVENT_HANDLERS.on_authorize = function (parameters) {
 
 var check_for_init = function () {
     if (!api.initialized) {
-        console.log('\n  \033[91m[Error] Repo is not initialized for this directory.\033[0m');
+        console.log('\n\033[91m[Error] Repo is not initialized for this directory.\033[0m');
         console.log('');
         process.exit(0);
     }
@@ -133,8 +141,8 @@ var check_for_init = function () {
 
 var check_for_not_init = function () {
     if (api.initialized) {
-        console.log('\n  \033[91m[Error] Repo is already initialized for this directory. Please use it or remove and create new repo.\033[0m');
-        console.log('\n  \033[36m[Tip] Use deploymaster rm-repo for remove repo for this directory\033[0m');
+        console.log('\n\033[91m[Error] Repo is already initialized for this directory. Please use it or remove and create new repo.\033[0m');
+        console.log('\n\033[36m[Tip] Use deploymaster rm-repo for remove repo for this directory\033[0m');
         api.current_index();
         print_repo_info();
         process.exit(0);
@@ -143,7 +151,7 @@ var check_for_not_init = function () {
 
 var check_for_host_repo = function () {
     if (api.parameters['repo']['config']['repo']['type'] != 'host') {
-        console.log('\n  \033[91m[Error] This is not host repo.\033[0m');
+        console.log('\n\033[91m[Error] This is not host repo.\033[0m');
         api.current_index();
         print_repo_info();
         process.exit(0);
@@ -152,7 +160,7 @@ var check_for_host_repo = function () {
 
 var check_for_not_host_repo = function () {
     if (api.parameters['repo']['config']['repo']['type'] == 'host') {
-        console.log('\n  \033[91m[Error] This is host repo.\033[0m');
+        console.log('\n\033[91m[Error] This is host repo.\033[0m');
         api.current_index();
         print_repo_info();
         process.exit(0);
@@ -161,8 +169,8 @@ var check_for_not_host_repo = function () {
 
 var check_for_password = function () {
     if (!api.parameters['repo']['config']['repo'].hasOwnProperty('password')) {
-        console.log('\n  \033[91m[Error] Password should be set for this host repo.\033[0m');
-        console.log('\n  \033[36m[Tip] deploymaster password --set NEWPASSWORD \033[0m');
+        console.log('\n\033[91m[Error] Password should be set for this host repo.\033[0m');
+        console.log('\n\033[36m[Tip] deploymaster password --set NEWPASSWORD \033[0m');
         console.log('');
         process.exit(0);
     }
@@ -170,20 +178,20 @@ var check_for_password = function () {
 
 var check_for_connected_to_host = function () {
     if (!api.parameters['repo']['config']['repo']['remote']['address'] || !api.parameters['repo']['config']['repo']['remote']['port']) {
-        console.log('\n  \033[91m[Error] Repo is not connected to host repo.\033[0m');
-        console.log('\n  \033[36m[Tip] deploymaster connect --host HOST:PORT \033[0m');
+        console.log('\n\033[91m[Error] Repo is not connected to host repo.\033[0m');
+        console.log('\n\033[36m[Tip] deploymaster connect --host HOST:PORT \033[0m');
         console.log('');
         process.exit(0);
     }
 };
 
 var print_repo_info = function () {
-    console.log('\n  Repository Information\n');
-    console.log('    Repo type:\t\t\t', api.parameters['repo']['config']['repo']['type']);
-    console.log('    Working Directory:\t\t', api.parameters['workdir']);
-    console.log('    DeployMaster directory:\t', api.parameters['deploymaster_path']);
-    console.log('    Repo DeployMaster version:\t', api.parameters['repo']['config']['version']);
-    console.log('    Tracked files:\t\t', Object.keys(api.index).length);
+    console.log('\nRepository Information\n');
+    console.log('  Repo type:\t\t\t', api.parameters['repo']['config']['repo']['type']);
+    console.log('  Working Directory:\t\t', api.parameters['workdir']);
+    console.log('  DeployMaster directory:\t', api.parameters['deploymaster_path']);
+    console.log('  Repo DeployMaster version:\t', api.parameters['repo']['config']['version']);
+    console.log('  Tracked files:\t\t', Object.keys(api.index).length);
     console.log('');
 };
 
@@ -191,13 +199,17 @@ var commandless = true;
 
 var cmd_init_host = function () {
     commandless = false;
+    
+    if (typeof parameters == 'undefined') {
+        parameters = {};
+    }
 
     define_api();
     api.current_repo();
     check_for_not_init();
 
     var host_repo = new api.HostRepo({
-
+        port: parameters.port
     });
 
     host_repo.init();
@@ -210,9 +222,66 @@ var cmd_start_host = function (parameters) {
         parameters = {};
     }
 
-    define_api({
-        workdir: parameters.workdir
-    });
+    var workdir;
+
+    if (parameters['create-workdir']) {
+        var new_password;
+
+        var prompt_pw = () => {
+            new_password = prompt.hide('Set a new password: ');
+            var new_password_again = prompt.hide('Type again: ');
+
+            if (new_password != new_password_again) {
+                console.log('\n\033[91mPasswords are not same.\033[0m');
+                prompt_pw();
+            }
+        };
+
+        prompt_pw();
+
+        workdir = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME']+'/.deploymaster-'+parameters.port+'-host';
+
+        define_api({
+            workdir: workdir
+        });
+
+        var host_repo;
+
+        if (!fs.existsSync(workdir)) {
+            fs.mkdirSync(workdir);
+
+            api.current_repo();
+
+            host_repo = new api.HostRepo({
+                port: parameters.port
+            });
+
+            host_repo.init();
+
+            api.current_repo();
+
+            host_repo.set_password({password: new_password});
+            api.save_repo_config();
+            api.current_repo();
+        } else {
+            host_repo = new api.HostRepo({
+                port: parameters.port
+            });
+
+            api.current_repo();
+
+            if (!api.initialized) {
+                host_repo.init();
+            }
+        }
+    } else {
+        workdir = parameters.workdir;
+        
+        define_api({
+            workdir: workdir
+        });
+    }
+
     api.current_repo();
 
     check_for_init();
@@ -220,27 +289,27 @@ var cmd_start_host = function (parameters) {
     check_for_password();
 
     if (api.parameters['repo']['config']['repo']['type'] != 'host') {
-        console.log('\n  \033[91m[Error] This is not host repo.\033[0m');
+        console.log('\n\033[91m[Error] This is not host repo.\033[0m');
         print_repo_info();
         process.exit(0);
     }
 
     console.log('');
-    console.log('  Starting the server..');
+    console.log('Starting the server..');
     console.log('');
-    console.log('  Server Information');
+    console.log('Server Information');
     console.log('');
-    console.log('    Name: '+api.parameters['repo']['config']['repo']['host']['name']);
-    console.log('    Port: '+api.parameters['repo']['config']['repo']['host']['port']);
-    console.log('    Workdir: '+api.parameters['workdir']);
+    console.log('  Name: '+api.parameters['repo']['config']['repo']['host']['name']);
+    console.log('  Port: '+api.parameters['repo']['config']['repo']['host']['port']);
+    console.log('  Workdir: '+api.parameters['workdir']);
     console.log('');
-    console.log('  Server is listening from 0.0.0.0:'+api.parameters['repo']['config']['repo']['host']['port']);
+    console.log('Server is listening from 0.0.0.0:'+api.parameters['repo']['config']['repo']['host']['port']);
 
     var result = api.repo.host();
 
     if (result.error) {
-        console.log('\n  \033[91m[Error] Host can not be started.\033[0m');
-        console.log('\n  \033[91m'+result.error.description+'\033[0m');
+        console.log('\n\033[91m[Error] Host can not be started.\033[0m');
+        console.log('\n\033[91m'+result.error.description+'\033[0m');
     }
     
     console.log('');
@@ -304,7 +373,7 @@ var cmd_config = function (parameters) {
             key = configception[key_index];
 
             if (!setat.hasOwnProperty(key)) {
-                console.log('\n  \033[91m[Error] Key "'+key+'" is not exists.\033[0m');
+                console.log('\n\033[91m[Error] Key "'+key+'" is not exists.\033[0m');
                 console.log('');
                 process.exit(0);
             }
@@ -347,7 +416,7 @@ var cmd_connect = function (parameters) {
     check_for_not_host_repo();
 
     if (api.parameters['repo']['config']['repo']['type'] != 'development') {
-        console.log('\n  \033[91m[Error] This is not development repo.\033[0m');
+        console.log('\n\033[91m[Error] This is not development repo.\033[0m');
         print_repo_info();
         process.exit(0);
     }
@@ -370,9 +439,9 @@ var cmd_connect = function (parameters) {
     var result = api.save_repo_config();
 
     if (result) {
-        console.log('\n  \033[32mOk.\033[0m');
+        console.log('\n\033[32mOk.\033[0m');
     } else {
-        console.log('\n  \033[91m[Error] An error has been occured while saving repo config on file system.\033[0m');
+        console.log('\n\033[91m[Error] An error has been occured while saving repo config on file system.\033[0m');
     }
 
     console.log('');
@@ -385,7 +454,7 @@ var cmd_track = function () {
     api.current_repo();
     check_for_init();
 
-    console.log('\n   Tracking for all..');
+    console.log('\n Tracking for all..');
 
     console.log('');
 
@@ -406,27 +475,29 @@ var cmd_status = function (parameters) {
 
     if (typeof production_repo == 'undefined') {
         console.log('');
-        console.log('  \033[91m[Error] "'+parameters.repo+'" is not exists.\033[0m');
-        console.log('\n  \033[36m[Tip] Use deploymaster production --set REPONAME --dir REMOTEDIR --owner USER --group GROUP\033[0m');
-        console.log('\n  \033[36m[Tip] Use deploymaster production for list repos\033[0m');
-        console.log('  \033[36m[Tip] Also see deploymaster production --help\033[0m');
+        console.log('\033[91m[Error] "'+parameters.repo+'" is not exists.\033[0m');
+        console.log('\n\033[36m[Tip] Use deploymaster production --set REPONAME --dir REMOTEDIR --owner USER --group GROUP\033[0m');
+        console.log('\n\033[36m[Tip] Use deploymaster production for list repos\033[0m');
+        console.log('\033[36m[Tip] Also see deploymaster production --help\033[0m');
         console.log('');
         return;
     }
 
     CLI_API_EVENT_HANDLERS.on_ask_for_password({
         return: function (error, password) {
+            console.log('');
+
             api.repo.connect({
                 on_connected: function () {
                     CLI_API_EVENT_HANDLERS.on_authorize({
                         password: password,
                         return: function () {
-                            console.log('  Updating index..');
+                            console.log('Updating index..');
                             console.log('');
 
                             api.update_index();
 
-                            console.log('  Fetching remote index..');
+                            console.log('Fetching remote index..');
 
                             api.repo.get_remote_index({
                                 workdir: production_repo.directory,
@@ -437,21 +508,21 @@ var cmd_status = function (parameters) {
                                     var index_diff_sorted = api.sort_index_by_status(index_diff);
                                     api.set_unpushed_status(api.get_unpushed_status(index_diff));
 
-                                    console.log('\n  Track Status\n');
+                                    console.log('\nTrack Status\n');
 
-                                    console.log('    Total files: '+api.unpushed_status['index']['count']['total']);
-                                    console.log('    New files: '+api.unpushed_status['index']['count']['new']);
-                                    console.log('    Modified files: '+api.unpushed_status['index']['count']['modified']);
-                                    console.log('    Copied files: '+api.unpushed_status['index']['count']['copied']);
-                                    console.log('    Deleted files: '+api.unpushed_status['index']['count']['deleted']);
-                                    console.log('    Modified mode files: '+api.unpushed_status['index']['count']['chmod']);
+                                    console.log('  Total files: '+api.unpushed_status['index']['count']['total']);
+                                    console.log('  New files: '+api.unpushed_status['index']['count']['new']);
+                                    console.log('  Modified files: '+api.unpushed_status['index']['count']['modified']);
+                                    console.log('  Copied files: '+api.unpushed_status['index']['count']['copied']);
+                                    console.log('  Deleted files: '+api.unpushed_status['index']['count']['deleted']);
+                                    console.log('  Modified mode files: '+api.unpushed_status['index']['count']['chmod']);
                                     console.log('');
 
                                     if (typeof parameters['show-files'] != 'undefined') {
                                         if (index_diff_sorted.length === 0) {
-                                            console.log('  There is no modified file');
+                                            console.log('There is no modified file');
                                         } else {
-                                            console.log('  Modified Files\n');
+                                            console.log('Modified Files\n');
 
                                             var file;
                                             var file_i;
@@ -498,7 +569,7 @@ var cmd_status = function (parameters) {
                     });
                 },
                 on_error: function () {
-                    console.log('  \033[91m[Error] Remote error.\033[0m');
+                    console.log('\033[91m[Error] Remote error.\033[0m');
                 },
                 on_connection_failed: CLI_API_EVENT_HANDLERS.on_connection_failed,
                 on_ask_for_tls_certificate: CLI_API_EVENT_HANDLERS.on_ask_for_tls_certificate
@@ -532,8 +603,8 @@ var cmd_push = function () {
                     CLI_API_EVENT_HANDLERS.on_authorize({
                         password: password,
                         return: function () {
-                            console.log('  Updating index..');
-                            console.log('\n  Checking for changes..');
+                            console.log('Updating index..');
+                            console.log('\nChecking for changes..');
 
                             api.update_index();
 
@@ -545,19 +616,19 @@ var cmd_push = function () {
                                     api.set_unpushed_status(api.get_unpushed_status(index_diff));
                                     
                                     console.log('');
-                                    console.log('  Packing all data..');
+                                    console.log('Packing all data..');
 
                                     api.create_pack({
                                         index: index_diff,
                                         as: 'gzip',
                                         return: function (parameters) {
                                             if (!parameters.ok) {
-                                                console.log('  \033[91m[Error] Packer error.\033[0m');
+                                                console.log('\033[91m[Error] Packer error.\033[0m');
                                                 console.log('');
                                                 process.exit(0);
                                             }
 
-                                            console.log('  Uploading all data..');
+                                            console.log('Uploading all data..');
                                             api.repo.push_to_host_repo({
                                                 pack: parameters.index,
                                                 as: 'gzip',
@@ -570,15 +641,15 @@ var cmd_push = function () {
                                                 on_data_sended: function () {
                                                     process.stdout.clearLine();
                                                     process.stdout.cursorTo(0);
-                                                    console.log('  All data is uploaded..');
-                                                    console.log('  Unpacking all data..');
+                                                    console.log('All data is uploaded..');
+                                                    console.log('Unpacking all data..');
                                                 },
                                                 unpacked: function (parameters) {
                                                     if (parameters.ok) {
-                                                        console.log('  Pushing completed.');
+                                                        console.log('Pushing completed.');
                                                         console.log('');
                                                     } else {
-                                                        console.log('  \033[91m[Error] Unpacker error.\033[0m');
+                                                        console.log('\033[91m[Error] Unpacker error.\033[0m');
                                                         console.log('');
                                                     }
                                                     
@@ -640,15 +711,15 @@ var cmd_production = function (parameters) {
         var keys = Object.keys(api.parameters['repo']['config']['repo']['remote']['production_repos']);
         if (keys.length === 0) {
             console.log('');
-            console.log('  There is not production repo.');
-            console.log('\n  \033[36m[Tip] Use deploymaster production --set REPONAME --dir REMOTEDIR --owner USER --group GROUP\033[0m');
-            console.log('  \033[36m[Tip] Also see deploymaster production.\033[0m');
+            console.log('There is not production repo.');
+            console.log('\n\033[36m[Tip] Use deploymaster production --set REPONAME --dir REMOTEDIR --owner USER --group GROUP\033[0m');
+            console.log('\033[36m[Tip] Also see deploymaster production.\033[0m');
             console.log('');
         } else {
             console.log('');
             keys.forEach(function (key) {
                 var repo = api.parameters['repo']['config']['repo']['remote']['production_repos'][key];
-                console.log('  '+key+': '+repo.directory+', Owner: '+repo.owner+', Group: '+repo.group);
+                console.log(''+key+': '+repo.directory+', Owner: '+repo.owner+', Group: '+repo.group);
             });
             console.log('');
         }
@@ -658,17 +729,19 @@ var cmd_production = function (parameters) {
 var cmd_password = function (parameters) {
     commandless = false;
 
+    parameters.set = parameters.set.toString();
+
     define_api();
     api.current_repo();
 
     check_for_init();
     check_for_host_repo();
 
-    api.parameters['repo']['config']['repo']['password'] = parameters.set;
+    (new api.HostRepo()).set_password({password: parameters.set});
     api.save_repo_config();
 
     console.log('');
-    console.log('  \033[32mOk.\033[0m');
+    console.log('\033[32mOk.\033[0m');
     console.log('');
 };
 
@@ -686,10 +759,10 @@ var cmd_publish = function (parameters) {
 
     if (typeof production_repo == 'undefined') {
         console.log('');
-        console.log('  \033[91m[Error] "'+parameters.repo+'" is not exists.\033[0m');
-        console.log('\n  \033[36m[Tip] Use deploymaster production --set REPONAME --dir REMOTEDIR --owner USER --group GROUP\033[0m');
-        console.log('\n  \033[36m[Tip] Use deploymaster production for list repos\033[0m');
-        console.log('  \033[36m[Tip] Also see deploymaster production --help\033[0m');
+        console.log('\033[91m[Error] "'+parameters.repo+'" is not exists.\033[0m');
+        console.log('\n\033[36m[Tip] Use deploymaster production --set REPONAME --dir REMOTEDIR --owner USER --group GROUP\033[0m');
+        console.log('\n\033[36m[Tip] Use deploymaster production for list repos\033[0m');
+        console.log('\033[36m[Tip] Also see deploymaster production --help\033[0m');
         console.log('');
         process.exit(0);
     }
@@ -701,12 +774,12 @@ var cmd_publish = function (parameters) {
                     CLI_API_EVENT_HANDLERS.on_authorize({
                         password: password,
                         return: function () {
-                            console.log('  Updating index..');
+                            console.log('Updating index..');
                             console.log('');
 
                             api.update_index();
 
-                            console.log('  Fetching remote index..');
+                            console.log('Fetching remote index..');
                             console.log('');
 
                             api.repo.get_remote_index({
@@ -716,17 +789,17 @@ var cmd_publish = function (parameters) {
                                     var index_diff_sorted = api.sort_index_by_status(index_diff);
                                     api.set_unpushed_status(api.get_unpushed_status(index_diff));
 
-                                    console.log('  Track Status\n');
+                                    console.log('Track Status\n');
 
-                                    console.log('    Total files: '+api.unpushed_status['index']['count']['total']);
-                                    console.log('    New files: '+api.unpushed_status['index']['count']['new']);
-                                    console.log('    Modified files: '+api.unpushed_status['index']['count']['modified']);
-                                    console.log('    Copied files: '+api.unpushed_status['index']['count']['copied']);
-                                    console.log('    Deleted files: '+api.unpushed_status['index']['count']['deleted']);
-                                    console.log('    Modified mode files: '+api.unpushed_status['index']['count']['chmod']);
+                                    console.log('  Total files: '+api.unpushed_status['index']['count']['total']);
+                                    console.log('  New files: '+api.unpushed_status['index']['count']['new']);
+                                    console.log('  Modified files: '+api.unpushed_status['index']['count']['modified']);
+                                    console.log('  Copied files: '+api.unpushed_status['index']['count']['copied']);
+                                    console.log('  Deleted files: '+api.unpushed_status['index']['count']['deleted']);
+                                    console.log('  Modified mode files: '+api.unpushed_status['index']['count']['chmod']);
                                     console.log('');
 
-                                    console.log('  Publishing from remote..');
+                                    console.log('Publishing from remote..');
                                     console.log('');
 
                                     api.repo.publish({
@@ -735,7 +808,7 @@ var cmd_publish = function (parameters) {
                                         owner: production_repo.owner,
                                         group: production_repo.group,
                                         return: function (parameters) {
-                                            console.log('  Everything is ok.. Check the product :/');
+                                            console.log('Everything is ok.. Check the product :/');
                                             console.log('');
                                             api.repo.disconnect();
                                         }
@@ -752,13 +825,150 @@ var cmd_publish = function (parameters) {
     });
 };
 
-// -------------------------------------------------------------------
+var cmd_install_service = function (parameters) {
+    commandless = false;
+
+    if (os.platform() == 'win32') {
+        console.log('\n\t\033[91mThis feature is for POSIX-like operating systems with systemd.\033[0m\n');
+        process.exit(0);
+    }
+
+    if (process.getuid && process.getuid() !== 0) {
+        console.log('\n\t\033[91mThis command should run as root.\033[0m\n');
+        process.exit(0);
+    }
+
+    var new_password;
+
+    var prompt_pw = () => {
+        new_password = prompt.hide('Set a new password: ');
+        var new_password_again = prompt.hide('Type again: ');
+
+        if (new_password != new_password_again) {
+            console.log('\n\033[91mPasswords are not same.\033[0m');
+            prompt_pw();
+        }
+    };
+
+    prompt_pw();
+
+    parameters = (parameters === undefined) ? {}: parameters;
+    parameters.port = (parameters.port === undefined) ? '5053': parameters.port;
+
+    if (!fs.existsSync('/var/deploymaster')) {
+        fs.mkdirSync('/var/deploymaster');
+    }
+
+    var workdir = '/var/deploymaster/deploymaster-'+parameters.port+'-host';
+
+    console.log('\n\033[36mCreating workdir \033[97m('+workdir+')\033[0m');
+
+    var host_repo;
+
+    if (!fs.existsSync(workdir)) {
+        fs.mkdirSync(workdir);
+
+        define_api({
+            workdir: workdir
+        });
+
+        api.current_repo();
+
+        host_repo = new api.HostRepo({
+            port: parameters.port
+        });
+
+        host_repo.init();
+
+        api.current_repo();
+
+        host_repo.set_password({password: new_password});
+        api.save_repo_config();
+        api.current_repo();
+
+        console.log('\n\033[36mInstalling systemd service \033[97m(deploymaster-'+parameters.port+'.service)\033[0m');
+
+        api.install_service({
+            port: parameters.port
+        });
+    } else {
+        define_api({
+            workdir: workdir
+        });
+
+        host_repo = new api.HostRepo({
+            port: parameters.port
+        });
+
+        api.current_repo();
+
+        if (!api.initialized) {
+            host_repo.init();
+        }
+
+        console.log('\n\033[36mInstalling systemd service \033[97m(deploymaster-'+parameters.port+'.service)\033[0m');
+
+        api.install_service({
+            port: parameters.port
+        });
+    }
+
+    console.log('\n\033[36mStarting service..\033[0m');
+
+    shelljs.exec('systemctl start deploymaster-'+parameters.port+'.service', {silent: false, async: false});
+
+    console.log('\n\033[32mService is successfully installed.\033[0m');
+    console.log('\n\033[36mYou can control it like:\033[0m \033[97msudo systemctl [start|stop|status] deploymaster-'+parameters.port+'.service\033[0m');
+
+    console.log();
+};
+
+var cmd_remove_service = function (parameters) {
+    commandless = false;
+
+    if (os.platform() == 'win32') {
+        console.log('\n\t\033[91mThis feature is for POSIX-like operating systems with systemd.\033[0m\n');
+        process.exit(0);
+    }
+
+    if (process.getuid && process.getuid() !== 0) {
+        console.log('\n\t\033[91mThis command should run as root.\033[0m\n');
+        process.exit(0);
+    }
+
+    parameters = (parameters === undefined) ? {}: parameters;
+    parameters.port = (parameters.port === undefined) ? '5053': parameters.port;
+
+    console.log('\n\033[36mRemoving systemd service \033[97m(deploymaster-'+parameters.port+'.service)\033[0m');
+
+    define_api();
+
+    api.remove_service({
+        port: parameters.port
+    });
+
+    var workdir = '/var/deploymaster/deploymaster-'+parameters.port+'-host';
+
+    console.log('\n\033[36mRemoving workdir \033[97m('+workdir+')\033[0m');
+
+    if (fs.existsSync(workdir)) {
+        rimraf.sync(workdir);
+    }
+
+    console.log();
+};
 
 nomnom.script('deploymaster');
 
 nomnom.command('init-host')
     .callback(cmd_init_host)
-    .help('Create new hosting repo');
+    .help('Create new hosting repo')
+    .option('port', {
+        required: false,
+        metavar: 'PORT',
+        default: '5053',
+        help: 'Port to listen'
+    });
 
 
 nomnom.command('start-host')
@@ -768,6 +978,17 @@ nomnom.command('start-host')
         required: false,
         metavar: 'PATH',
         help: 'Host repo directory'
+    })
+    .option('port', {
+        required: false,
+        metavar: 'PORT',
+        default: '5053',
+        help: 'Port to listen'
+    })
+    .option('create-workdir', {
+        flag: true,
+        required: false,
+        help: 'Create a workdir before starting server'
     });
 
 nomnom.command('init-development')
@@ -884,5 +1105,23 @@ nomnom.command('connect')
     })
     .callback(cmd_connect)
     .help('Connect this development repo to main repository');
+
+nomnom.command('install-service')
+    .option('host', {
+        required: false,
+        metavar: 'PORT',
+        help: 'Port to listen'
+    })
+    .callback(cmd_install_service)
+    .help('Create a systemd service');
+
+nomnom.command('remove-service')
+    .option('host', {
+        required: false,
+        metavar: 'PORT',
+        help: 'Port to listen'
+    })
+    .callback(cmd_remove_service)
+    .help('Remove a deploymaster systemd service');
 
 nomnom.parse();

@@ -47,16 +47,12 @@ const tools = require('./tools.js');
 module.exports = function (_parameters) {
     t_Api = this;
 
-    // -------------------------------------------------------------------
-
     t_Api.debug_print_enabled = true;
 
     t_Api.debug_print = function () {
         if (!t_Api.debug_print_enabled) {return;}
         console.log.apply(this, arguments);
     };
-
-    // -------------------------------------------------------------------
 
     t_Api.FILE_STATUS_NEW = 1;
     t_Api.FILE_STATUS_MODIFIED = 2;
@@ -72,8 +68,6 @@ module.exports = function (_parameters) {
         t_Api.FILE_STATUS_DELETED,
         t_Api.FILE_STATUS_CHMOD,
     ];
-
-    // -------------------------------------------------------------------
     
     t_Api.real_path = function (path) {
         if (os.platform() == 'win32') {
@@ -96,8 +90,6 @@ module.exports = function (_parameters) {
         return fs_path.resolve(path);
     };
 
-    // -------------------------------------------------------------------
-
     t_Api.relative_index_path = function (path, workdir) {
         return t_Api.absolute_path(path).replace(workdir, '').replace(new RegExp('\\\\', 'g'), '/');
     };
@@ -106,12 +98,12 @@ module.exports = function (_parameters) {
         return t_Api.absolute_path(workdir+'/'+relative_path);
     };
 
-    // -------------------------------------------------------------------
-
     t_Api.parameters = _parameters || {};
 
-    t_Api.parameters['workdir'] = t_Api.real_path(t_Api.parameters['workdir']);
-    t_Api.parameters['deploymaster_path'] = t_Api.real_path(t_Api.parameters['workdir'])+fs_path.sep+t_Api.parameters['config']['deploymaster_dir'];
+    var workdir_path = t_Api.real_path(t_Api.parameters['workdir']);
+
+    t_Api.parameters['workdir'] = workdir_path ? workdir_path: t_Api.parameters['workdir'];
+    t_Api.parameters['deploymaster_path'] = t_Api.parameters['workdir']+fs_path.sep+t_Api.parameters['config']['deploymaster_dir'];
 
     t_Api.parameters['file_config'] = t_Api.parameters['deploymaster_path']+fs_path.sep+'deploymaster.config';
     t_Api.parameters['file_index'] = t_Api.parameters['deploymaster_path']+fs_path.sep+'index.json';
@@ -130,42 +122,30 @@ module.exports = function (_parameters) {
      *
      */
     t_Api.parameters['repo'] = {
-        repo: false
+        
     };
 
     t_Api.parameters['host_repo'] = {
         hostable: false
     };
 
-    // -------------------------------------------------------------------
-
     t_Api.config_initial = {
         version: t_Api.parameters['config']['version']
     };
     t_Api.parameters['repo']['config'] = false;
 
-    // -------------------------------------------------------------------
-
     t_Api.index = false;
 
-    // -------------------------------------------------------------------
-
     t_Api.unpushed_status = false;
-
-    // -------------------------------------------------------------------
 
     t_Api.tmp = {};
     t_Api.tmp.is_ready = false;
     t_Api.tmp.dir = null;
     t_Api.tmp.path = null;
 
-    // -------------------------------------------------------------------
-
     t_Api.pack = {};
     t_Api.pack.is_ready = false;
     t_Api.pack.path = null;
-
-    // -------------------------------------------------------------------
 
     // Helpers
 
@@ -218,8 +198,6 @@ module.exports = function (_parameters) {
         return parameters['type']+':'+parameters['path'];
     };
 
-    // -------------------------------------------------------------------
-
     /**
      * Method: Api.save_repo_config()
      * Save current config (Api.parameters['repo']['config']) to repo
@@ -239,8 +217,6 @@ module.exports = function (_parameters) {
             return true;
         }
     };
-
-    // -------------------------------------------------------------------
 
     /**
      * Method: Api.current_repo()
@@ -270,8 +246,6 @@ module.exports = function (_parameters) {
 
         return true;
     };
-
-    // -------------------------------------------------------------------
 
     /**
      * Method: Api.current_index()
@@ -380,8 +354,6 @@ module.exports = function (_parameters) {
         fs.writeFileSync(t_Api.parameters['file_index'], JSON.stringify(t_Api.index));
     };
 
-    // -------------------------------------------------------------------
-
     /**
      * Method: Api.get_unpushed_status()
      * Param: index_to_diff (Difference Index) (Deploymaster Index Object) (Object)
@@ -435,8 +407,6 @@ module.exports = function (_parameters) {
         t_Api.unpushed_status = unpushed_status;
     };
 
-    // -------------------------------------------------------------------
-
     /**
      * Method: Api.remove_repo()
      * Removes current repo
@@ -444,8 +414,6 @@ module.exports = function (_parameters) {
     t_Api.remove_repo = function () {
         rimraf.sync(t_Api.parameters['workdir']);
     };
-
-    // -------------------------------------------------------------------
 
     /**
      * Method: Api.create_index_diff(
@@ -703,8 +671,6 @@ module.exports = function (_parameters) {
         return index_diff;
     };
 
-    // -------------------------------------------------------------------
-
     /**
      * Method: Api.get_ignorelist()
      * Param: workdir (String)
@@ -721,8 +687,6 @@ module.exports = function (_parameters) {
         }
         return production_dir_ignorelist;
     };
-    // -------------------------------------------------------------------
-
     /**
      * Method: Api.create_pack()
      * Param: parameters (Object) {
@@ -812,8 +776,6 @@ module.exports = function (_parameters) {
         }
     };
 
-    // -------------------------------------------------------------------
-
     t_Api.DevelopmentRepo = function (_parameters) {
         t_DevelopmentRepo = this;
 
@@ -822,7 +784,6 @@ module.exports = function (_parameters) {
         t_DevelopmentRepo.parameters['remote'] = {
             address: false,
             port: false,
-            transfer_port: false,
             repo: false,
             is_connected: false,
         };
@@ -833,7 +794,6 @@ module.exports = function (_parameters) {
             remote: {
                 address: false,
                 port: false,
-                transfer_port: false,
                 tls: {
                     use_tls: true,
                     trusted_certs: []
@@ -1037,8 +997,6 @@ module.exports = function (_parameters) {
                     parameters['on_disconnected']();
                 }
             });
-
-            // -------------------------------------------------------------------
         };
 
         /**
@@ -1154,8 +1112,6 @@ module.exports = function (_parameters) {
             });
         };
 
-        // -------------------------------------------------------------------
-
         /**
          * Method: Api.DevelopmentRepo.publish()
          * Publish to remote directory from host repo.
@@ -1188,8 +1144,6 @@ module.exports = function (_parameters) {
             };
         };
     };
-
-    // -------------------------------------------------------------------
 
     /**
      * Method: Api.apply_pack()
@@ -1307,7 +1261,6 @@ module.exports = function (_parameters) {
                 file_path_absolute = t_Api.index_abs_path(file.path.path, parameters.workdir);
 
                 if (file.pull.status == t_Api.FILE_STATUS_NEW) {
-                    console.log('new:', file.type+':'+file.path.path);
                     if (file.type == 'file') {
                         zip
                         .file(file.path.path)
@@ -1350,20 +1303,26 @@ module.exports = function (_parameters) {
         });
     };
 
-    // -------------------------------------------------------------------
-
     t_Api.HostRepo = function (_parameters) {
         t_HostRepo = this;
 
         t_HostRepo.parameters = _parameters || {};
 
-        t_HostRepo.config_initial = t_Api.config_initial;
-        t_HostRepo.config_initial['repo'] = {
+        var init_config = t_Api.config_initial;
+
+        var port;
+
+        if (t_HostRepo.parameters.port === undefined) {
+            port = config.port;
+        } else {
+            port = t_HostRepo.parameters.port;
+        }
+
+        init_config['repo'] = {
             type: 'host',
             host: {
                 "name": "",
-                "port": config.port,
-                "transfer_port": config.transfer_port,
+                "port": port,
                 "tls": {
                     "use_tls": true,
                     "key_file": "",
@@ -1379,7 +1338,7 @@ module.exports = function (_parameters) {
             var result = true;
 
             result = result && (fs.mkdirSync(t_Api.parameters['deploymaster_path']) === undefined)
-            && (fs.writeFileSync(t_Api.parameters['file_config'], JSON.stringify(t_HostRepo.config_initial)) === undefined)
+            && (fs.writeFileSync(t_Api.parameters['file_config'], JSON.stringify(init_config)) === undefined)
             && (fs.writeFileSync(t_Api.parameters['file_index'], '{}') === undefined);
 
             t_Api.update_index();
@@ -1470,7 +1429,10 @@ module.exports = function (_parameters) {
 
                     if (data.event == 'authorize') {
                         t_Api.debug_print('['+client.ip+'] '+'trying auth..');
-                        if (data.data.password == t_Api.parameters['repo']['config']['repo']['password']) {
+
+                        var password_hash = crypto.createHash('md5').update(data.data.password).digest('hex');
+
+                        if (password_hash == t_Api.parameters['repo']['config']['repo']['password']) {
                             client.authorized = true;
                             socket.write({
                                 event: 'authorize_return',
@@ -1659,12 +1621,48 @@ module.exports = function (_parameters) {
 
             server.listen(t_HostRepo.config['host']['port']);
 
-            // -------------------------------------------------------------------
-
             result['error'] = false;
             return result;
         };
+
+        t_HostRepo.set_password = function (parameters) {
+            t_Api.parameters['repo']['config']['repo']['password'] = crypto.createHash('md5').update(parameters.password).digest('hex');
+        };
     };
 
-    // -------------------------------------------------------------------
+    t_Api.create_host_dir = function (parameters) {
+        parameters
+    };
+
+    t_Api.install_service = function (parameters) {
+        var service_file_path = '/etc/systemd/system/'+'deploymaster-'+parameters.port+'.service';
+        var service_file_content =
+`
+[Unit]
+Description=Deploy Master Service (Port: `+parameters.port+`)
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/deploymaster start-host --workdir `+t_Api.real_path(t_Api.parameters['workdir'])+`
+
+[Install]
+WantedBy=multi-user.target
+
+`;
+    
+        fs.writeFileSync(service_file_path, service_file_content);
+        shelljs.exec('systemctl daemon-reload', {silent: false, async: false});
+    };
+
+    t_Api.remove_service = function (parameters) {
+        var service_file_path = '/etc/systemd/system/'+'deploymaster-'+parameters.port+'.service';
+
+        shelljs.exec('systemctl stop deploymaster-'+parameters.port+'.service', {silent: false, async: false});
+
+        if (fs.existsSync(service_file_path)) {
+            rimraf.sync(service_file_path);
+        }
+
+        shelljs.exec('systemctl daemon-reload', {silent: false, async: false});
+    };
 };
