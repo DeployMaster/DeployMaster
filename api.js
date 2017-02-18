@@ -469,6 +469,11 @@ module.exports = function (_parameters) {
             var _continue = false;
             for (key in ignorelist) {
                 ignored = ignorelist[key];
+
+                if (ignored.length < 2) {
+                    continue;
+                }
+
                 if (t_Api.is_path_at(_file_source.path.path, ignored)) {
                     _continue = true;
                 }
@@ -492,6 +497,11 @@ module.exports = function (_parameters) {
                 var _continue = false;
                 for (key in ignorelist) {
                     ignored = ignorelist[key];
+
+                    if (ignored.length < 2) {
+                        continue;
+                    }
+
                     if (t_Api.is_path_at(_file_destination.path.path, ignored)) {
                         _continue = true;
                     }
