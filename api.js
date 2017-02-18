@@ -45,7 +45,7 @@ const config = require('./config.js');
 const tools = require('./tools.js');
 
 module.exports = function (_parameters) {
-    t_Api = this;
+    var t_Api = this;
 
     t_Api.debug_print_enabled = true;
 
@@ -279,8 +279,18 @@ module.exports = function (_parameters) {
     t_Api.create_index = function (parameters) {
         if (typeof parameters.ignorelist == 'undefined') {
             parameters.ignorelist = [];
-        }
 
+            var ignorelist_path = t_Api.index_abs_path('.ignorelist.deploymaster', parameters.workdir);
+
+            if (fs.existsSync(ignorelist_path)) {
+                fs.readFileSync(ignorelist_path).toString().split('\n').forEach((_ignore_path, _ignore_path_i) => {
+                    if ((_ignore_path.length > 1) && _ignore_path[0] == '/') {
+                        parameters.ignorelist.push(_ignore_path);
+                    }
+                });
+            }
+        }
+        
         var new_index = {};
         glob.sync(parameters.workdir+fs_path.sep+'**', {dot: true}).forEach(function (_file_path, file_path_index) {
             var file_path = t_Api.real_path(_file_path);
@@ -777,7 +787,7 @@ module.exports = function (_parameters) {
     };
 
     t_Api.DevelopmentRepo = function (_parameters) {
-        t_DevelopmentRepo = this;
+        var t_DevelopmentRepo = this;
 
         t_DevelopmentRepo.parameters = _parameters || {};
 
@@ -1304,7 +1314,7 @@ module.exports = function (_parameters) {
     };
 
     t_Api.HostRepo = function (_parameters) {
-        t_HostRepo = this;
+        var t_HostRepo = this;
 
         t_HostRepo.parameters = _parameters || {};
 
@@ -1628,10 +1638,6 @@ module.exports = function (_parameters) {
         t_HostRepo.set_password = function (parameters) {
             t_Api.parameters['repo']['config']['repo']['password'] = crypto.createHash('md5').update(parameters.password).digest('hex');
         };
-    };
-
-    t_Api.create_host_dir = function (parameters) {
-        parameters
     };
 
     t_Api.install_service = function (parameters) {
