@@ -42,7 +42,7 @@ command
   repo-info            Show repository information for this directory
   track                Track for all
   status               Show track status for all
-  push                 Push all to host repo
+  push                 Push new files to host repo
   production           Set production repo
   password             Set password for host repo
   publish              Publish from connected host repo to deployment repo
@@ -84,6 +84,17 @@ cd /path/to/project_host
 deploymaster init-host
 ```
 
+##### Notice!
+If you did created a systemd service with "install-service" option,
+you should enter host directory before set it.
+
+It is like this;
+```bash
+cd /var/deploymaster/deploymaster-5053-host
+```
+
+"install-service" option creates host directories like `/var/deploymaster/deploymaster-PORT-host`
+
 ##### Define a password for host repo
 
 ```bash
@@ -120,11 +131,13 @@ deploymaster config --key host.tls.cert_file --value "/path/to/public.crt"
 
 ##### Start repository hosting
 
+If you don't use systemd service, you can start hosting for any directory.
+
 ```bash
 deploymaster start-host
 ```
 
-Or
+or
 
 ```bash
 deploymaster start-host --workdir /path/to/project_host
@@ -210,10 +223,12 @@ Do you trust it ?
 
 If its ok, type "y" or "p" and press enter else type "n" and press enter
 
-##### Push changes to host repo
+##### Push new files to host
+
+If you have new files;
 
 ```bash
-deploymaster push
+deploymaster push --repo production
 ```
 
 ##### Publish all to production
@@ -222,9 +237,33 @@ deploymaster push
 deploymaster publish --repo production
 ```
 
+(New files should be pushed.)
+
+##### Notice!
+
+New files come from pushed files to host directory.
+
+If you have some changes and 100 new files and pushed it.
+
+When you did;
+```bash
+deploymaster push --repo production
+deploymaster publish --production testing
+```
+
+and after testing.. when you did;
+
+```bash
+deploymaster publish --production production
+```
+
+New 100 files come from host directory.
+
+DeployMaster prefers `Testing - Production` approach.
+
 ##### Ignorelist
 
-Create ```.ignorelist.deploymaster``` file in ```development repo``` or ```production directory```
+Create ```.ignorelist.deploymaster``` file in ```development repo``` and/or ```production directory```
 
 It is like this
 
@@ -232,7 +271,11 @@ It is like this
 /config.php
 /config/db.php
 /temp
+/static
 ```
+
+The main approach is two same ignorelists at development and production directories both.<br />
+But you might be want some specific ignored items for `testing` or `production` repos.
 
 ## Contributing
 

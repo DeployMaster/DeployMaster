@@ -511,7 +511,7 @@ module.exports = function (_parameters) {
                 }
 
                 if (_file_source['type'] == 'file' && _file_destination['type'] == 'file') {
-                    if (_file_source['path']['sha1sum'] == _file_destination['path']['sha1sum']) {
+                    if (_file_source['path']['path'] == _file_destination['path']['path']) {
                         _is_same_path = true;
                     } else {
                         _is_same_path = false;
@@ -538,13 +538,13 @@ module.exports = function (_parameters) {
                     } else if (_is_same_path && !_is_same_mode) {
                         _file_diff['pull']['status'] = t_Api.FILE_STATUS_CHMOD;
                         _is_linked_on_dest = true;
-                    } else if (_is_same_content) {
+                    } else if (!_is_same_path && _is_same_content) {
                         var _same_on_dest = index_destination[t_Api.index_key({
                             path: _file_source.path.path,
                             type: 'file'
                         })];
-                        if (typeof _same_on_dest != 'undefined' && (_same_on_dest.content.sha1sum == _file_source.content.sha1sum)) {
 
+                        if (typeof _same_on_dest != 'undefined' && (_same_on_dest.content.sha1sum == _file_source.content.sha1sum)) {
                         } else {
                             _file_diff['pull']['status'] = t_Api.FILE_STATUS_COPIED;
                             _file_diff['pull']['copy'] = {};
@@ -556,13 +556,13 @@ module.exports = function (_parameters) {
                         }
                     }
                 } else if (_file_source['type'] == 'directory' && _file_destination['type'] == 'directory') {
-                    if (_file_source['path']['sha1sum'] == _file_destination['path']['sha1sum']) {
+                    if (_file_source['path']['path'] == _file_destination['path']['path']) {
                         _file_diff['pull']['status'] = t_Api.FILE_STATUS_UNMODIFIED;
 
                         _is_linked_on_dest = true;
                     }
                 } else if (_file_source['type'] == 'file') {
-                    if (_file_source['path']['sha1sum'] == _file_destination['path']['sha1sum']) {
+                    if (_file_source['path']['path'] == _file_destination['path']['path']) {
                         _file_diff['pull']['status'] = t_Api.FILE_STATUS_NEW;
 
                         /*
@@ -578,7 +578,7 @@ module.exports = function (_parameters) {
                         _is_linked_on_dest = true;
                     }
                 } else if (_file_source['type'] == 'directory') {
-                    if (_file_source['path']['sha1sum'] == _file_destination['path']['sha1sum']) {
+                    if (_file_source['path']['path'] == _file_destination['path']['path']) {
                         _file_diff['pull']['status'] = t_Api.FILE_STATUS_NEW;
 
                         /*
@@ -656,7 +656,7 @@ module.exports = function (_parameters) {
                     continue;
                 }
 
-                if (_file_destination['path']['sha1sum'] == _file_source['path']['sha1sum']) {
+                if (_file_destination['path']['path'] == _file_source['path']['path']) {
                     _is_linked_on_source = true;
                 }
             }
@@ -1101,20 +1101,20 @@ module.exports = function (_parameters) {
                             });
 
                             read_stream.on('data', function (chunk) {
-                                byte_offset += chunk.length;
-
                                 t_DevelopmentRepo.parameters['remote']['socket'].write({
                                     event: 'chunk_stream_pack',
                                     chunk: chunk
-                                });
+                                }, undefined, function () {
+                                    byte_offset += chunk.length;
 
-                                parameters.on_data(byte_offset, zip_stats.size);
+                                    parameters.on_data(byte_offset, zip_stats.size);
+                                });
                             }).on('end', function () {
                                 t_DevelopmentRepo.parameters['remote']['socket'].write({
                                     event: 'end_stream_pack'
+                                }, undefined, function () {
+                                    parameters.on_data_sended();
                                 });
-
-                                parameters.on_data_sended();
                             });
                         };
                     };
@@ -1154,6 +1154,7 @@ module.exports = function (_parameters) {
                     ignorelist: parameters.ignorelist,
                     owner: parameters.owner,
                     group: parameters.group,
+                    index: parameters.index
                 }
             });
 
@@ -1179,7 +1180,7 @@ module.exports = function (_parameters) {
      */
     t_Api.apply_pack = function (parameters) {
         if (Object.keys(parameters.index).length === 0) {
-            return;
+            parameters.return({ok: true});
         }
 
         if (typeof parameters.owner == 'undefined') {
@@ -1295,14 +1296,18 @@ module.exports = function (_parameters) {
                         continue_after_writing();
                     }
                 } else if (file.pull.status == t_Api.FILE_STATUS_COPIED) {
-                    if (fs.existsSync(file_path_absolute)) {
-                        rimraf.sync(file_path_absolute);
-                    }
+                    if (fs.existsSync(file.pull.copy.source.path.path)) {
+                        if (fs.existsSync(file_path_absolute)) {
+                            rimraf.sync(file_path_absolute);
+                        }
 
-                    fs.createReadStream(t_Api.index_abs_path(file.pull.copy.source.path.path, parameters.workdir))
-                    .pipe(
-                        fs.createWriteStream(file_path_absolute)
-                    ).on('finish', continue_after_writing);
+                        fs.createReadStream(t_Api.index_abs_path(file.pull.copy.source.path.path, parameters.workdir))
+                        .pipe(
+                            fs.createWriteStream(file_path_absolute)
+                        ).on('finish', continue_after_writing);
+                    } else {
+                        continue_after_writing();
+                    }
                 } else if (file.pull.status == t_Api.FILE_STATUS_MODIFIED) {
                     zip
                     .file(file.path.path)
@@ -1450,7 +1455,11 @@ module.exports = function (_parameters) {
                     if (data.event == 'authorize') {
                         t_Api.debug_print('['+client.ip+'] '+'trying auth..');
 
-                        var password_hash = crypto.createHash('md5').update(data.data.password).digest('hex');
+                        try {
+                            var password_hash = crypto.createHash('md5').update(data.data.password).digest('hex');
+                        } catch (e) {
+                            return;
+                        }
 
                         if (password_hash == t_Api.parameters['repo']['config']['repo']['password']) {
                             client.authorized = true;
@@ -1597,15 +1606,15 @@ module.exports = function (_parameters) {
                                     }
                                 });
 
-                                var host_index = t_Api.create_index({
-                                    workdir: t_Api.parameters['workdir']
-                                });
+                                // var host_index = t_Api.create_index({
+                                //     workdir: t_Api.parameters['workdir']
+                                // });
 
                                 var production_dir_index = t_Api.create_index({
                                     workdir: data.data.dir
                                 });
 
-                                var production_dir_index_diff = t_Api.create_index_diff(host_index, production_dir_index, total_ignorelist);
+                                var production_dir_index_diff = t_Api.create_index_diff(data.data.index, production_dir_index, total_ignorelist);
 
                                 t_Api.create_pack({
                                     index: production_dir_index_diff,
