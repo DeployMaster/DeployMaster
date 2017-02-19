@@ -1,7 +1,7 @@
 {
     "name": "deploymaster",
     "description": "Fast deployment tool",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "homepage": "https://github.com/DeployMaster/DeployMaster",
     "license": "MIT",
     "author": "Oğuzhan Eroğlu <rohanrhu2@gmail.com> (http://oguzhaneroglu.com/)",

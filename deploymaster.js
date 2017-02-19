@@ -1117,7 +1117,7 @@ nomnom.command('push')
         metavar: 'PRODUCTION',
         help: 'Production directory'
     })
-    .help('Push new files to host repo');
+    .help('Push new/modified files to host repo');
 
 nomnom.command('production')
     .option('set', {

@@ -277,7 +277,9 @@ It is like this
 The main approach is two same ignorelists at development and production directories both.<br />
 But you might be want some specific ignored items for `testing` or `production` repos.
 
-In development or production sides, DeployMaster will track files in all directories and sub-directories if they are not included in ignorelist.<br />
+##### Notice!
+In development or production sides, DeployMaster will track files in all directories and sub-directories if they are not included in ignorelist.
+
 If you are using only ignorelist in development or production side, DeployMaster will look for all files in other side..
 
 ## Contributing
