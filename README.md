@@ -42,7 +42,7 @@ command
   repo-info            Show repository information for this directory
   track                Track for all
   status               Show track status for all
-  push                 Push new files to host repo
+  push                 Push new/modified files to host repo
   production           Set production repo
   password             Set password for host repo
   publish              Publish from connected host repo to deployment repo
@@ -223,7 +223,7 @@ Do you trust it ?
 
 If its ok, type "y" or "p" and press enter else type "n" and press enter
 
-##### Push new files to host
+##### Push new/modified files to host
 
 If you have new files;
 
@@ -237,13 +237,13 @@ deploymaster push --repo production
 deploymaster publish --repo production
 ```
 
-(New files should be pushed.)
+(New and modified files should be pushed.)
 
 ##### Notice!
 
-New files come from pushed files to host directory.
+New and modified files come from pushed files to host directory.
 
-If you have some changes and 100 new files and pushed it.
+If you have some changes and 100 new/modified files and pushed it.
 
 When you did;
 ```bash
@@ -257,13 +257,13 @@ and after testing.. when you did;
 deploymaster publish --production production
 ```
 
-New 100 files come from host directory.
+New/modified 100 files come from host directory.
 
 DeployMaster prefers `Testing - Production` approach.
 
 ##### Ignorelist
 
-Create ```.ignorelist.deploymaster``` file in ```development repo``` and/or ```production directory```
+Create `.ignorelist.deploymaster` file in `development repo` and `production directory`
 
 It is like this
 
@@ -277,9 +277,12 @@ It is like this
 The main approach is two same ignorelists at development and production directories both.<br />
 But you might be want some specific ignored items for `testing` or `production` repos.
 
+In development or production sides, DeployMaster will track files in all directories and sub-directories if they are not included in ignorelist.<br />
+If you are using only ignorelist in development or production side, DeployMaster will look for all files in other side..
+
 ## Contributing
 
-Patches welcome
+If you think you can contribute to DeployMaster, clone, code, commit and create a pull request!
 
 ## License
 MIT

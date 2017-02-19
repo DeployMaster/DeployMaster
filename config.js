@@ -2,7 +2,7 @@
 var fs = require('fs');
 
 module.exports = {
-    version: '0.1.7',
+    version: '0.1.8',
     deploymaster_dir: '.deploymaster',
     host_config_file: '.host.config.deploymaster',
     tls: {

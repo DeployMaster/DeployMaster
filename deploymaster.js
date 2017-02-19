@@ -860,89 +860,131 @@ var cmd_install_service = function (parameters) {
         process.exit(0);
     }
 
-    var new_password;
+    var _continue = (new_password) => {
+        parameters = (parameters === undefined) ? {}: parameters;
+        parameters.port = (parameters.port === undefined) ? '5053': parameters.port;
+
+        if (!fs.existsSync('/var/deploymaster')) {
+            fs.mkdirSync('/var/deploymaster');
+        }
+
+        var workdir = '/var/deploymaster/deploymaster-'+parameters.port+'-host';
+
+        print('\n\033[36mCreating workdir \033[97m('+workdir+')\033[0m');
+
+        var host_repo;
+
+        if (!fs.existsSync(workdir)) {
+            fs.mkdirSync(workdir);
+
+            define_api({
+                workdir: workdir
+            });
+
+            api.current_repo();
+
+            host_repo = new api.HostRepo({
+                port: parameters.port
+            });
+
+            host_repo.init();
+
+            api.current_repo();
+
+            host_repo.set_password({password: new_password});
+            api.save_repo_config();
+            api.current_repo();
+
+            print('\n\033[36mInstalling systemd service \033[97m(deploymaster-'+parameters.port+'.service)\033[0m');
+
+            api.install_service({
+                port: parameters.port
+            });
+        } else {
+            define_api({
+                workdir: workdir
+            });
+
+            host_repo = new api.HostRepo({
+                port: parameters.port
+            });
+
+            api.current_repo();
+
+            if (!api.initialized) {
+                host_repo.init();
+            }
+
+            print('\n\033[36mInstalling systemd service \033[97m(deploymaster-'+parameters.port+'.service)\033[0m');
+
+            api.install_service({
+                port: parameters.port
+            });
+        }
+
+        print('\n\033[36mStarting service..\033[0m');
+
+        shelljs.exec('systemctl start deploymaster-'+parameters.port+'.service', {silent: false, async: false});
+
+        print('\n\033[32mService is successfully installed.\033[0m');
+        print('\n\033[36mYou can control it like:\033[0m \033[97msudo systemctl [start|stop|status] deploymaster-'+parameters.port+'.service\033[0m');
+
+        print();
+    }
 
     var prompt_pw = () => {
-        new_password = prompt.hide('Set a new password: ');
-        var new_password_again = prompt.hide('Type again: ');
+        read(
+            {
+                prompt: 'Password:',
+                input: process.stdin,
+                output: process.stdout,
+                silent: true,
+                replace: ''
+            },
+            (error, password) => {
+                if (error instanceof Error) {
+                    console.log();
+                    process.exit(0);
+                }
 
-        if (new_password != new_password_again) {
-            print('\n\033[91mPasswords are not same.\033[0m');
-            prompt_pw();
-        }
-    };
+                if (password.length == 0) {
+                    console.log('You should determine a password..');
+                    prompt_pw();
+                    return;
+                }
 
-    prompt_pw();
+                read(
+                    {
+                        prompt: 'Password (again):',
+                        input: process.stdin,
+                        output: process.stdout,
+                        silent: true,
+                        replace: ''
+                    }, 
+                    (error, password_again) => {
+                        if (error instanceof Error) {
+                            console.log();
+                            process.exit(0);
+                        }
 
-    parameters = (parameters === undefined) ? {}: parameters;
-    parameters.port = (parameters.port === undefined) ? '5053': parameters.port;
-
-    if (!fs.existsSync('/var/deploymaster')) {
-        fs.mkdirSync('/var/deploymaster');
+                        if (password != password_again) {
+                            print('\n\033[91mPasswords are not same.\033[0m');
+                            prompt_pw();
+                        } else {
+                            _continue(password);
+                        }
+                    }
+                );
+            }
+        );
     }
 
-    var workdir = '/var/deploymaster/deploymaster-'+parameters.port+'-host';
-
-    print('\n\033[36mCreating workdir \033[97m('+workdir+')\033[0m');
-
-    var host_repo;
-
-    if (!fs.existsSync(workdir)) {
-        fs.mkdirSync(workdir);
-
-        define_api({
-            workdir: workdir
-        });
-
-        api.current_repo();
-
-        host_repo = new api.HostRepo({
-            port: parameters.port
-        });
-
-        host_repo.init();
-
-        api.current_repo();
-
-        host_repo.set_password({password: new_password});
-        api.save_repo_config();
-        api.current_repo();
-
-        print('\n\033[36mInstalling systemd service \033[97m(deploymaster-'+parameters.port+'.service)\033[0m');
-
-        api.install_service({
-            port: parameters.port
-        });
-    } else {
-        define_api({
-            workdir: workdir
-        });
-
-        host_repo = new api.HostRepo({
-            port: parameters.port
-        });
-
-        api.current_repo();
-
-        if (!api.initialized) {
-            host_repo.init();
-        }
-
-        print('\n\033[36mInstalling systemd service \033[97m(deploymaster-'+parameters.port+'.service)\033[0m');
-
-        api.install_service({
-            port: parameters.port
-        });
+    try {
+        prompt_pw();
+    } catch (e) {
+        console.log('[Erorr]:', e);
+        process.exit(0);
     }
-
-    print('\n\033[36mStarting service..\033[0m');
-
-    shelljs.exec('systemctl start deploymaster-'+parameters.port+'.service', {silent: false, async: false});
-
-    print('\n\033[32mService is successfully installed.\033[0m');
-    print('\n\033[36mYou can control it like:\033[0m \033[97msudo systemctl [start|stop|status] deploymaster-'+parameters.port+'.service\033[0m');
-
-    print();
 };
 
 var cmd_remove_service = function (parameters) {
